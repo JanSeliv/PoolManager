@@ -1,10 +1,10 @@
-﻿// Copyright (c) Yevhenii Selivanov.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "Modules/ModuleInterface.h"
 
-class MYSETTINGSWIDGETCONSTRUCTOR_API FMySettingsWidgetConstructorModule : public IModuleInterface
+class FUNCTIONPICKER_API FFunctionPickerModule : public IModuleInterface
 {
 public:
 	/**
