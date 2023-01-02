@@ -26,7 +26,7 @@ public class PoolManager : ModuleRules
 			// Include Editor modules that are used in this Runtime module
 			PrivateDependencyModuleNames.AddRange(new[]
 				{
-					"UnrealEd" // FDataTableEditorUtils
+					"UnrealEd" // GEditor
 				}
 			);
 		}
