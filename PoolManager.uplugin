@@ -6,7 +6,7 @@
 	"Description": "Plugin improves performance by reducing overhead of creating and destroying objects",
 	"Category": "Programming",
 	"CreatedBy": "Yevhenii Selivanov",
-	"CreatedByURL": "https://github.com/JanSeliv/Bomber",
+	"CreatedByURL": "https://github.com/JanSeliv/PoolManager",
 	"DocsURL": "",
 	"MarketplaceURL": "",
 	"SupportURL": "mailto:janseliw@gmail.com",
