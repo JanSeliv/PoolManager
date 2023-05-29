@@ -1,6 +1,6 @@
 ﻿// Copyright (c) Yevhenii Selivanov
 
-#include "PoolManager.h"
+#include "PoolManagerSubsystem.h"
 //---
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
@@ -13,7 +13,7 @@
 #define VECTOR_HALF_WORLD_MAX FVector(HALF_WORLD_MAX - HALF_WORLD_MAX * THRESH_VECTOR_NORMALIZED)
 
 // Returns the pointer to your Pool Manager
-UPoolManager* UPoolManager::GetPoolManager(TSubclassOf<UPoolManager> OptionalClass/* = nullptr*/, const UObject* OptionalWorldContext/* = nullptr*/)
+UPoolManagerSubsystem* UPoolManagerSubsystem::GetPoolManagerByClass(TSubclassOf<UPoolManagerSubsystem> OptionalClass/* = nullptr*/, const UObject* OptionalWorldContext/* = nullptr*/)
 {
 	if (!OptionalClass)
 	{
@@ -38,7 +38,7 @@ UPoolManager* UPoolManager::GetPoolManager(TSubclassOf<UPoolManager> OptionalCla
 		return nullptr;
 	}
 
-	UPoolManager* FoundPoolManager = Cast<UPoolManager>(FoundWorld->GetSubsystemBase(OptionalClass));
+	UPoolManagerSubsystem* FoundPoolManager = Cast<UPoolManagerSubsystem>(FoundWorld->GetSubsystemBase(OptionalClass));
 	if (!ensureMsgf(FoundPoolManager, TEXT("%s: 'Can not find Pool Manager for %s class in %s world"), *FString(__FUNCTION__), *OptionalClass->GetName(), *FoundWorld->GetName()))
 	{
 		return nullptr;
@@ -47,8 +47,39 @@ UPoolManager* UPoolManager::GetPoolManager(TSubclassOf<UPoolManager> OptionalCla
 	return FoundPoolManager;
 }
 
+// Get the object from a pool by specified class
+UObject* UPoolManagerSubsystem::TakeFromPool_Implementation(const UClass* ClassInPool, const FTransform& Transform)
+{
+	if (!ensureMsgf(ClassInPool, TEXT("%s: 'ClassInPool' is not specified"), *FString(__FUNCTION__)))
+	{
+		return nullptr;
+	}
+
+	// Try to get free object from the pool and return
+	if (UObject* PoolObject = GetFreeObjectInPool(ClassInPool))
+	{
+		if (AActor* Actor = Cast<AActor>(PoolObject))
+		{
+			Actor->SetActorTransform(Transform);
+		}
+
+		SetActive(true, PoolObject);
+
+		return PoolObject;
+	}
+
+	// Since there is no free object in the pool, create a new one
+	return CreateNewObjectInPool(ClassInPool, Transform, EPoolObjectState::Active);
+}
+
+// Returns the specified object to the pool and deactivates it if the object was taken from the pool before
+void UPoolManagerSubsystem::ReturnToPool_Implementation(UObject* Object)
+{
+	SetActive(false, Object);
+}
+
 // Adds specified object as is to the pool by its class to be handled by the Pool Manager
-bool UPoolManager::AddToPool(UObject* Object, EPoolObjectState PoolObjectState/* = EPoolObjectState::Inactive*/)
+bool UPoolManagerSubsystem::RegisterObjectInPool_Implementation(UObject* Object, EPoolObjectState PoolObjectState/* = EPoolObjectState::Inactive*/)
 {
 	if (!Object)
 	{
@@ -103,55 +134,26 @@ bool UPoolManager::AddToPool(UObject* Object, EPoolObjectState PoolObjectState/*
 	return true;
 }
 
-// Get the object from a pool by specified class
-UObject* UPoolManager::TakeFromPool(const FTransform& Transform, const UClass* ClassInPool)
+// Always creates new object and adds it to the pool by its class
+UObject* UPoolManagerSubsystem::CreateNewObjectInPool_Implementation(const UClass* ObjectClass, const FTransform& Transform, EPoolObjectState PoolObjectState)
 {
-	if (!ensureMsgf(ClassInPool, TEXT("%s: 'ClassInPool' is not specified"), *FString(__FUNCTION__)))
+	UWorld* World = GetWorld();
+	if (!ensureMsgf(World, TEXT("%s: 'World' is not valid"), *FString(__FUNCTION__)))
 	{
 		return nullptr;
 	}
 
-	FPoolContainer* Pool = FindPool(ClassInPool);
+	FPoolContainer* Pool = FindPool(ObjectClass);
 	if (!Pool)
 	{
-		const int32 PoolIndex = PoolsInternal.Emplace(FPoolContainer(ClassInPool));
+		const int32 PoolIndex = PoolsInternal.Emplace(FPoolContainer(ObjectClass));
 		Pool = &PoolsInternal[PoolIndex];
 	}
 
-	if (!ensureMsgf(Pool, TEXT("%s: 'Pool' is not valid"), *FString(__FUNCTION__)))
-	{
-		return nullptr;
-	}
-
-	// Try to find ready object to return
-	for (FPoolObjectData& PoolObjectIt : Pool->PoolObjects)
-	{
-		if (PoolObjectIt.IsFree())
-		{
-			UObject* PoolObject = PoolObjectIt.Get();
-
-			if (AActor* Actor = Cast<AActor>(PoolObject))
-			{
-				Actor->SetActorTransform(Transform);
-			}
-
-			SetActive(true, PoolObject);
-
-			return PoolObject;
-		}
-	}
-
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		return nullptr;
-	}
-
-	// Create new object
 	UObject* CreatedObject;
-	if (ClassInPool->IsChildOf<AActor>())
+	if (ObjectClass->IsChildOf<AActor>())
 	{
-		UClass* ClassToSpawn = const_cast<UClass*>(ClassInPool);
+		UClass* ClassToSpawn = const_cast<UClass*>(ObjectClass);
 		FActorSpawnParameters SpawnParameters;
 		SpawnParameters.OverrideLevel = World->PersistentLevel; // Always keep new objects on Persistent level
 		SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
@@ -160,16 +162,15 @@ UObject* UPoolManager::TakeFromPool(const FTransform& Transform, const UClass* C
 	}
 	else
 	{
-		CreatedObject = NewObject<UObject>(World, ClassInPool);
+		CreatedObject = NewObject<UObject>(World, ObjectClass);
 	}
 
 	checkf(CreatedObject, TEXT("CRITICAL ERROR: %s: 'CreatedObject' is not valid"), *FString(__FUNCTION__))
 
 	FPoolObjectData PoolObjectData;
 	PoolObjectData.PoolObject = CreatedObject;
-	// Set activity here instead of calling UPoolManager::SetActive since new object never was inactivated before to switch the state
-	// Is true because it returns new active object to the game
-	PoolObjectData.bIsActive = true;
+	// Set activity here instead of calling UPoolManagerSubsystem::SetActive since new object never was inactivated before to switch the state
+	PoolObjectData.bIsActive = PoolObjectState == EPoolObjectState::Active;
 	Pool->PoolObjects.Emplace(MoveTemp(PoolObjectData));
 
 	if (AActor* SpawnedActor = Cast<AActor>(CreatedObject))
@@ -181,14 +182,8 @@ UObject* UPoolManager::TakeFromPool(const FTransform& Transform, const UClass* C
 	return CreatedObject;
 }
 
-// Returns the specified object to the pool and deactivates it if the object was taken from the pool before
-void UPoolManager::ReturnToPool(UObject* Object)
-{
-	SetActive(false, Object);
-}
-
 // Destroy all object of a pool by a given class
-void UPoolManager::EmptyPool(const UClass* ClassInPool)
+void UPoolManagerSubsystem::EmptyPool_Implementation(const UClass* ClassInPool)
 {
 	FPoolContainer* Pool = FindPool(ClassInPool);
 	if (!ensureMsgf(Pool, TEXT("%s: 'Pool' is not valid"), *FString(__FUNCTION__)))
@@ -219,7 +214,7 @@ void UPoolManager::EmptyPool(const UClass* ClassInPool)
 }
 
 // Destroy all objects in all pools that are handled by the Pool Manager
-void UPoolManager::EmptyAllPools()
+void UPoolManagerSubsystem::EmptyAllPools_Implementation()
 {
 	const int32 PoolsNum = PoolsInternal.Num();
 	for (int32 Index = PoolsNum - 1; Index >= 0; --Index)
@@ -232,7 +227,7 @@ void UPoolManager::EmptyAllPools()
 }
 
 // Destroy all objects in Pool Manager based on a predicate functor
-void UPoolManager::EmptyAllByPredicate(TFunctionRef<bool(const UObject* Object)> Predicate)
+void UPoolManagerSubsystem::EmptyAllByPredicate(const TFunctionRef<bool(const UObject* Object)> Predicate)
 {
 	const int32 PoolsNum = PoolsInternal.Num();
 	for (int32 PoolIndex = PoolsNum - 1; PoolIndex >= 0; --PoolIndex)
@@ -268,7 +263,7 @@ void UPoolManager::EmptyAllByPredicate(TFunctionRef<bool(const UObject* Object)>
 }
 
 // Activates or deactivates the object if such object is handled by the Pool Manager
-void UPoolManager::SetActive(bool bShouldActivate, UObject* Object)
+void UPoolManagerSubsystem::SetActive(bool bShouldActivate, UObject* Object)
 {
 	const UWorld* World = Object ? Object->GetWorld() : nullptr;
 	if (!World)
@@ -305,7 +300,7 @@ void UPoolManager::SetActive(bool bShouldActivate, UObject* Object)
 }
 
 // Returns current state of specified object
-EPoolObjectState UPoolManager::GetPoolObjectState(const UObject* Object) const
+EPoolObjectState UPoolManagerSubsystem::GetPoolObjectState_Implementation(const UObject* Object) const
 {
 	const UClass* ClassInPool = Object ? Object->GetClass() : nullptr;
 	const FPoolContainer* Pool = FindPool(ClassInPool);
@@ -322,31 +317,58 @@ EPoolObjectState UPoolManager::GetPoolObjectState(const UObject* Object) const
 }
 
 // Returns true is specified object is handled by Pool Manager
-bool UPoolManager::Contains(const UObject* Object) const
+bool UPoolManagerSubsystem::ContainsObjectInPool_Implementation(const UObject* Object) const
 {
 	return GetPoolObjectState(Object) != EPoolObjectState::None;
 }
 
+bool UPoolManagerSubsystem::ContainsClassInPool_Implementation(const UClass* ClassInPool) const
+{
+	return FindPool(ClassInPool) != nullptr;
+}
+
 // Returns true if specified object is handled by the Pool Manager and was taken from its pool
-bool UPoolManager::IsActive(const UObject* Object) const
+bool UPoolManagerSubsystem::IsActive_Implementation(const UObject* Object) const
 {
 	return GetPoolObjectState(Object) == EPoolObjectState::Active;
 }
 
 // Returns true if handled object is inactive and ready to be taken from pool
-bool UPoolManager::IsFree(const UObject* Object) const
+bool UPoolManagerSubsystem::IsFreeObjectInPool_Implementation(const UObject* Object) const
 {
 	return GetPoolObjectState(Object) == EPoolObjectState::Inactive;
 }
 
+// Returns first object contained in the Pool by its class that is inactive and ready to be taken from pool
+UObject* UPoolManagerSubsystem::GetFreeObjectInPool_Implementation(const UClass* ObjectClass) const
+{
+	const FPoolContainer* Pool = FindPool(ObjectClass);
+	if (!Pool)
+	{
+		return nullptr;
+	}
+
+	// Try to find ready object to return
+	for (const FPoolObjectData& PoolObjectIt : Pool->PoolObjects)
+	{
+		if (PoolObjectIt.IsFree())
+		{
+			return PoolObjectIt.Get();
+		}
+	}
+
+	// There is no free object to be taken
+	return nullptr;
+}
+
 // Returns true if object is known by Pool Manager
-bool UPoolManager::IsRegistered(const UObject* Object) const
+bool UPoolManagerSubsystem::IsRegistered_Implementation(const UObject* Object) const
 {
 	return GetPoolObjectState(Object) != EPoolObjectState::None;
 }
 
 // Is called on initialization of the Pool Manager instance
-void UPoolManager::Initialize(FSubsystemCollectionBase& Collection)
+void UPoolManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
@@ -357,8 +379,8 @@ void UPoolManager::Initialize(FSubsystemCollectionBase& Collection)
 	{
 		// Editor pool manager instance has different lifetime than PIE pool manager instance,
 		// So, to prevent memory leaks, clear all pools on switching levels in Editor
-		TWeakObjectPtr<UPoolManager> WeakPoolManager(this);
-		auto OnWorldDestroyed = [WeakPoolManager](UWorld* World)
+		TWeakObjectPtr<UPoolManagerSubsystem> WeakPoolManager(this);
+		auto OnWorldDestroyed = [WeakPoolManager](const UWorld* World)
 		{
 			if (!World || !World->IsEditorWorld()
 				|| !GEditor || GEditor->IsPlaySessionInProgress())
@@ -367,7 +389,7 @@ void UPoolManager::Initialize(FSubsystemCollectionBase& Collection)
 				return;
 			}
 
-			if (UPoolManager* PoolManager = WeakPoolManager.Get())
+			if (UPoolManagerSubsystem* PoolManager = WeakPoolManager.Get())
 			{
 				PoolManager->EmptyAllPools();
 			}
@@ -379,7 +401,7 @@ void UPoolManager::Initialize(FSubsystemCollectionBase& Collection)
 }
 
 // Returns the pointer to found pool by specified class
-FPoolContainer* UPoolManager::FindPool(const UClass* ClassInPool)
+FPoolContainer* UPoolManagerSubsystem::FindPool(const UClass* ClassInPool)
 {
 	if (!ClassInPool)
 	{
