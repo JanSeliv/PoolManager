@@ -6,7 +6,7 @@
 //---
 #include "PoolManagerTypes.h"
 //---
-#include "PoolManager.generated.h"
+#include "PoolManagerSubsystem.generated.h"
 
 /** The Pool Manager is used for commonly-spawning objects:
  * Unreal Engine spawning can be very slow. Spawning and destroying things like projectiles,
@@ -18,14 +18,14 @@
  * Can be used in Editor before game starts.
  */
 UCLASS(BlueprintType, Blueprintable)
-class POOLMANAGER_API UPoolManager : public UWorldSubsystem
+class POOLMANAGER_API UPoolManagerSubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()
 
 public:
 #pragma region GetPoolManager
 	/** Returns the Pool Manager, is checked and wil crash if can't be obtained.
-	* UPoolManager::Get(). with no parameters can be used in most cases if there is no specific set up.
+	* UPoolManagerSubsystem::Get(). with no parameters can be used in most cases if there is no specific set up.
 	* @tparam T is optional, put your child class if you implemented your own Pull Manager.
 	* @param OptionalWorldContext is optional, can be null in most cases, could be useful to avoid obtaining the automatically. */
 	template <typename T = ThisClass>
@@ -35,7 +35,7 @@ public:
 	 * @param OptionalClass is optional, specify the class if you implemented your own Pool Manager.
 	 * @param OptionalWorldContext is optional parameter and hidden in blueprints, can be null in most cases, could be useful to avoid obtaining the world automatically. */
 	UFUNCTION(BlueprintPure, meta = (WorldContext = "OptionalWorldContext"))
-	static UPoolManager* GetPoolManager(TSubclassOf<UPoolManager> OptionalClass = nullptr, const UObject* OptionalWorldContext = nullptr);
+	static UPoolManagerSubsystem* GetPoolManager(TSubclassOf<UPoolManagerSubsystem> OptionalClass = nullptr, const UObject* OptionalWorldContext = nullptr);
 #pragma endregion GetPoolManager
 
 	/** Adds specified object as is to the pool by its class to be handled by the Pool Manager. */
@@ -99,7 +99,7 @@ protected:
 
 	/** Returns the pointer to found pool by specified class. */
 	virtual FPoolContainer* FindPool(const UClass* ClassInPool);
-	const FORCEINLINE FPoolContainer* FindPool(const UClass* ClassInPool) const { return const_cast<UPoolManager*>(this)->FindPool(ClassInPool); }
+	const FORCEINLINE FPoolContainer* FindPool(const UClass* ClassInPool) const { return const_cast<UPoolManagerSubsystem*>(this)->FindPool(ClassInPool); }
 
 	/** Activates or deactivates the object if such object is handled by the Pool Manager. */
 	UFUNCTION(BlueprintCallable, meta = (BlueprintProtected, DefaultToSelf = "Object"))
