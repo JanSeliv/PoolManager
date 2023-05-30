@@ -10,6 +10,12 @@ The Pool Manager alleviates these problems by maintaining a pool of objects. Ins
 
 Detailed documentation about the Pool Manager can be found [here](https://docs.google.com/document/d/1YxbIdc9lZRl5ozI7_1LTBfdzJWTwhxwz2RKA-r0Q4po).
 
+## 🎓 Sample Projects
+
+Check out our [Release](https://github.com/JanSeliv/PoolManager/releases) page for two sample projects showcasing the Pool Manager, one with blueprints and another in C++.
+
+Also, explore this [game project repository](https://github.com/JanSeliv/Bomber) to view the Pool Manager in action.
+
 ## 📅 Changelog
 #### 2023-05-28
 - 🎉 Initial public release.
