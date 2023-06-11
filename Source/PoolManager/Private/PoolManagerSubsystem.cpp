@@ -8,6 +8,8 @@
 #if WITH_EDITOR
 #include "Editor.h"
 #endif // WITH_EDITOR
+//---
+#include UE_INLINE_GENERATED_CPP_BY_NAME(PoolManagerSubsystem)
 
 // It's almost farthest possible location where deactivated actors are placed
 #define VECTOR_HALF_WORLD_MAX FVector(HALF_WORLD_MAX - HALF_WORLD_MAX * THRESH_VECTOR_NORMALIZED)
