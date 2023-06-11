@@ -1,6 +1,8 @@
 ﻿// Copyright (c) Yevhenii Selivanov
 
 #include "PoolManagerTypes.h"
+//---
+#include UE_INLINE_GENERATED_CPP_BY_NAME(PoolManagerTypes)
 
 // Empty pool object data
 const FPoolObjectData FPoolObjectData::EmptyObject = FPoolObjectData();
