@@ -6,6 +6,8 @@ Creating and destroying objects, like projectiles or explosions, can be slow and
 
 The Pool Manager alleviates these problems by maintaining a pool of objects. Instead of creating and destroying objects all the time, the Pool Manager keeps these objects for reuse. This strategy improves the smoothness of the game.
 
+![PoolManager](https://github.com/JanSeliv/PoolManager/assets/20540872/b3df793b-059b-4bf1-a04f-d06289fad5b5)
+
 ## 📚 Documentation
 
 Detailed documentation about the Pool Manager can be found [here](https://docs.google.com/document/d/1YxbIdc9lZRl5ozI7_1LTBfdzJWTwhxwz2RKA-r0Q4po).
@@ -18,7 +20,7 @@ Also, explore this [game project repository](https://github.com/JanSeliv/Bomber)
 
 ## 📅 Changelog
 #### 2023-05-28
-- 🎉 Initial public release.
+- 🎉 Initial public release on Unreal Engine 5.2
 
 ## 📫 Feedback & Contribution
 
