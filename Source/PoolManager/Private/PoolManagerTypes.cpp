@@ -19,7 +19,7 @@ FPoolObjectData::FPoolObjectData(UObject* InPoolObject)
 // Parameterized constructor that takes a class of the pool
 FPoolContainer::FPoolContainer(const UClass* InClass)
 {
-	ClassInPool = InClass;
+	ObjectClass = InClass;
 }
 
 // Returns the pointer to the Pool element by specified object
@@ -34,4 +34,11 @@ FPoolObjectData* FPoolContainer::FindInPool(const UObject* Object)
 	{
 		return It.PoolObject == Object;
 	});
+}
+
+// Returns factory or crashes as critical error if it is not set
+UPoolFactory_UObject& FPoolContainer::GetFactoryChecked() const
+{
+	checkf(Factory, TEXT("ERROR: [%i] %s:\n'Factory' is null!"), __LINE__, *FString(__FUNCTION__));
+	return *Factory;
 }

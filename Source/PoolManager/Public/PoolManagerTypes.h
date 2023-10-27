@@ -61,6 +61,10 @@ struct POOLMANAGER_API FPoolObjectData
 	template <typename T = UObject>
 	FORCEINLINE T* Get() const { return Cast<T>(PoolObject.Get()); }
 
+	/** Element access, crash if object is not valid. */
+	template <typename T = UObject>
+	FORCEINLINE T& GetChecked() const { return *CastChecked<T>(PoolObject.Get()); }
+
 	/** Element access. */
 	FORCEINLINE UObject* operator->() const { return PoolObject.Get(); }
 };
@@ -84,7 +88,11 @@ struct POOLMANAGER_API FPoolContainer
 
 	/** Class of all objects in this pool. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TObjectPtr<const UClass> ClassInPool = nullptr;
+	TObjectPtr<const UClass> ObjectClass = nullptr;
+
+	/** Factory that manages objects for this pool. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TObjectPtr<class UPoolFactory_UObject> Factory = nullptr;
 
 	/** All objects in this pool that are handled by the Pool Manager. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -94,6 +102,41 @@ struct POOLMANAGER_API FPoolContainer
 	FPoolObjectData* FindInPool(const UObject* Object);
 	const FORCEINLINE FPoolObjectData* FindInPool(const UObject* Object) const { return const_cast<FPoolContainer*>(this)->FindInPool(Object); }
 
+	/** Returns factory or crashes as critical error if it is not set. */
+	UPoolFactory_UObject& GetFactoryChecked() const;
+
 	/** Returns true if the class is set for the Pool. */
-	FORCEINLINE bool IsValid() const { return ClassInPool != nullptr; }
+	FORCEINLINE bool IsValid() const { return ObjectClass != nullptr; }
+};
+
+/**
+ * Contains the functions that are called when the object is spawned.
+ */
+struct POOLMANAGER_API FSpawnCallbacks
+{
+	/** Returns spawned object if it finished spawning successfully. */
+	TFunction<void(UObject*)> OnPreConstructed = nullptr;
+
+	/** Returns spawned object when it finished spawning successfully. */
+	TFunction<void(UObject*)> OnPostSpawned = nullptr;
+};
+
+/**
+ * Define a structure to hold the necessary information for spawning an object.
+ */
+USTRUCT(BlueprintType)
+struct POOLMANAGER_API FSpawnRequest
+{
+	GENERATED_BODY()
+
+	/** Class of the object to spawn. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TObjectPtr<const UClass> Class = nullptr;
+
+	/** Transform of the object to spawn. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FTransform Transform = FTransform::Identity;
+
+	// Contains the functions that are called when the object is spawned
+	FSpawnCallbacks Callbacks;
 };

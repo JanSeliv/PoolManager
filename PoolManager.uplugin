@@ -20,6 +20,11 @@
 			"Name": "PoolManager",
 			"Type": "Runtime",
 			"LoadingPhase": "EarliestPossible"
+		},
+		{
+			"Name": "PoolManagerEditor",
+			"Type": "UncookedOnly",
+			"LoadingPhase": "EarliestPossible"
 		}
 	]
 }

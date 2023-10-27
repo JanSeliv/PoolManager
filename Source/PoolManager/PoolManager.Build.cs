@@ -13,6 +13,7 @@ public class PoolManager : ModuleRules
 		PublicDependencyModuleNames.AddRange(new[]
 			{
 				"Core"
+				, "DeveloperSettings" // Created UPoolManagerSettings
 			}
 		);
 
