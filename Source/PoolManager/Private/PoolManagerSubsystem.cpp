@@ -2,8 +2,9 @@
 
 #include "PoolManagerSubsystem.h"
 //---
+#include "Factories/PoolFactory_UObject.h"
+//---
 #include "Engine/World.h"
-#include "GameFramework/Actor.h"
 //---
 #if WITH_EDITOR
 #include "Editor.h"
@@ -11,8 +12,9 @@
 //---
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PoolManagerSubsystem)
 
-// It's almost farthest possible location where deactivated actors are placed
-#define VECTOR_HALF_WORLD_MAX FVector(HALF_WORLD_MAX - HALF_WORLD_MAX * THRESH_VECTOR_NORMALIZED)
+/*********************************************************************************************
+ * Static Getters
+ ********************************************************************************************* */
 
 // Returns the pointer to your Pool Manager
 UPoolManagerSubsystem* UPoolManagerSubsystem::GetPoolManagerByClass(TSubclassOf<UPoolManagerSubsystem> OptionalClass/* = nullptr*/, const UObject* OptionalWorldContext/* = nullptr*/)
@@ -49,36 +51,107 @@ UPoolManagerSubsystem* UPoolManagerSubsystem::GetPoolManagerByClass(TSubclassOf<
 	return FoundPoolManager;
 }
 
-// Get the object from a pool by specified class
-UObject* UPoolManagerSubsystem::TakeFromPool_Implementation(const UClass* ClassInPool, const FTransform& Transform)
+/*********************************************************************************************
+ * Main API
+ ********************************************************************************************* */
+
+// Async version of TakeFromPool() that returns the object by specified class
+void UPoolManagerSubsystem::BPTakeFromPool(const UClass* ObjectClass, const FTransform& Transform, const FOnTakenFromPool& Completed)
 {
-	if (!ensureMsgf(ClassInPool, TEXT("%s: 'ClassInPool' is not specified"), *FString(__FUNCTION__)))
+	UObject* PoolObject = TakeFromPoolOrNull(ObjectClass, Transform);
+	if (PoolObject)
+	{
+		// Found in pool
+		Completed.ExecuteIfBound(PoolObject);
+		return;
+	}
+
+	FSpawnRequest Request;
+	Request.Class = ObjectClass;
+	Request.Transform = Transform;
+	Request.Callbacks.OnPostSpawned = [Completed](UObject* SpawnedObject)
+	{
+		Completed.ExecuteIfBound(SpawnedObject);
+	};
+	CreateNewObjectInPool(Request);
+}
+
+// Is code async version of TakeFromPool() that calls callback functions when the object is ready
+void UPoolManagerSubsystem::TakeFromPool(const UClass* ObjectClass, const FTransform& Transform/* = FTransform::Identity*/, const TFunction<void(UObject*)>& Completed/* = nullptr*/)
+{
+	UObject* PoolObject = TakeFromPoolOrNull(ObjectClass, Transform);
+	if (PoolObject)
+	{
+		if (Completed != nullptr)
+		{
+			Completed(PoolObject);
+		}
+		return;
+	}
+
+	FSpawnRequest Request;
+	Request.Class = ObjectClass;
+	Request.Transform = Transform;
+	Request.Callbacks.OnPostSpawned = Completed;
+	CreateNewObjectInPool(Request);
+}
+
+// Is internal function to find object in pool or return null
+UObject* UPoolManagerSubsystem::TakeFromPoolOrNull_Implementation(const UClass* ObjectClass, const FTransform& Transform)
+{
+	if (!ensureMsgf(ObjectClass, TEXT("%s: 'ObjectClass' is not specified"), *FString(__FUNCTION__)))
 	{
 		return nullptr;
 	}
 
-	// Try to get free object from the pool and return
-	if (UObject* PoolObject = GetFreeObjectInPool(ClassInPool))
+	FPoolContainer* Pool = FindPool(ObjectClass);
+	if (!Pool)
 	{
-		if (AActor* Actor = Cast<AActor>(PoolObject))
-		{
-			Actor->SetActorTransform(Transform);
-		}
-
-		SetActive(true, PoolObject);
-
-		return PoolObject;
+		// Pool is not registered
+		return nullptr;
 	}
 
-	// Since there is no free object in the pool, create a new one
-	return CreateNewObjectInPool(ClassInPool, Transform, EPoolObjectState::Active);
+	// Try to find first object contained in the Pool by its class that is inactive and ready to be taken from pool
+	UObject* FoundObject = nullptr;
+	for (const FPoolObjectData& PoolObjectIt : Pool->PoolObjects)
+	{
+		if (PoolObjectIt.IsFree())
+		{
+			FoundObject = PoolObjectIt.Get();
+			break;
+		}
+	}
+
+	if (!FoundObject)
+	{
+		// No free objects in pool
+		return nullptr;
+	}
+
+	Pool->GetFactoryChecked().OnTakeFromPool(FoundObject, Transform);
+
+	SetObjectStateInPool(EPoolObjectState::Active, FoundObject, *Pool);
+
+	return FoundObject;
 }
 
 // Returns the specified object to the pool and deactivates it if the object was taken from the pool before
 void UPoolManagerSubsystem::ReturnToPool_Implementation(UObject* Object)
 {
-	SetActive(false, Object);
+	FPoolContainer* Pool = Object ? FindPool(Object->GetClass()) : nullptr;
+	if (!ensureMsgf(Pool, TEXT("ASSERT: [%i] %s:\n'Pool' is not not registered for '%s' object, can not return it to pool!"), __LINE__, *FString(__FUNCTION__), *GetNameSafe(Object)))
+	{
+		return;
+	}
+
+	Pool->GetFactoryChecked().OnReturnToPool(Object);
+
+	SetObjectStateInPool(EPoolObjectState::Inactive, Object, *Pool);
 }
+
+/*********************************************************************************************
+ * Advanced
+ ********************************************************************************************* */
 
 // Adds specified object as is to the pool by its class to be handled by the Pool Manager
 bool UPoolManagerSubsystem::RegisterObjectInPool_Implementation(UObject* Object, EPoolObjectState PoolObjectState/* = EPoolObjectState::Inactive*/)
@@ -88,127 +161,171 @@ bool UPoolManagerSubsystem::RegisterObjectInPool_Implementation(UObject* Object,
 		return false;
 	}
 
-	const UClass* ActorClass = Object->GetClass();
-	FPoolContainer* Pool = FindPool(ActorClass);
-	if (!Pool)
-	{
-		const int32 PoolIndex = PoolsInternal.Emplace(FPoolContainer(ActorClass));
-		Pool = &PoolsInternal[PoolIndex];
-	}
+	const UClass* ObjectClass = Object->GetClass();
+	FPoolContainer& Pool = FindPoolOrAdd(ObjectClass);
 
-	if (!ensureMsgf(Pool, TEXT("%s: 'Pool' is not valid"), *FString(__FUNCTION__)))
-	{
-		return false;
-	}
-
-	if (Pool->FindInPool(Object))
+	if (Pool.FindInPool(Object))
 	{
 		// Already contains in pool
 		return false;
 	}
 
-	FPoolObjectData PoolObject(Object);
+	FPoolObjectData& ObjectDataRef = Pool.PoolObjects.Emplace_GetRef(Object);
+	ObjectDataRef.bIsActive = PoolObjectState == EPoolObjectState::Active;
 
-	if (const AActor* Actor = Cast<AActor>(Object))
-	{
-		// Decide by its location should it be activated or not if only state is not specified
-		switch (PoolObjectState)
-		{
-		case EPoolObjectState::None:
-			PoolObject.bIsActive = !Actor->GetActorLocation().Equals(VECTOR_HALF_WORLD_MAX);
-			break;
-		case EPoolObjectState::Active:
-			PoolObject.bIsActive = true;
-			break;
-		case EPoolObjectState::Inactive:
-			PoolObject.bIsActive = false;
-			break;
-		default:
-			checkf(false, TEXT("%s: Invalid plugin enumeration type. Need to add a handle for that case here"), *FString(__FUNCTION__));
-			break;
-		}
-	}
-
-	Pool->PoolObjects.Emplace(PoolObject);
-
-	SetActive(PoolObject.bIsActive, Object);
+	SetObjectStateInPool(PoolObjectState, Object, Pool);
 
 	return true;
 }
 
 // Always creates new object and adds it to the pool by its class
-UObject* UPoolManagerSubsystem::CreateNewObjectInPool_Implementation(const UClass* ObjectClass, const FTransform& Transform, EPoolObjectState PoolObjectState)
+void UPoolManagerSubsystem::CreateNewObjectInPool_Implementation(FSpawnRequest& InRequest)
 {
-	UWorld* World = GetWorld();
-	if (!ensureMsgf(World, TEXT("%s: 'World' is not valid"), *FString(__FUNCTION__)))
+	// Always register new object in pool once it is spawned
+	const TWeakObjectPtr<ThisClass> WeakThis = this;
+	InRequest.Callbacks.OnPreConstructed = [WeakThis, InRequest](UObject* Object)
+	{
+		if (UPoolManagerSubsystem* PoolManager = WeakThis.Get())
+		{
+			PoolManager->RegisterObjectInPool(Object, EPoolObjectState::Active);
+		}
+	};
+
+	FindPoolOrAdd(InRequest.Class).GetFactoryChecked().RequestSpawn(InRequest);
+}
+
+/*********************************************************************************************
+ * Advanced - Factories
+ ********************************************************************************************* */
+
+// Registers new factory to be used by the Pool Manager when dealing with objects of specific class and its children
+void UPoolManagerSubsystem::AddFactory(TSubclassOf<UPoolFactory_UObject> FactoryClass)
+{
+	const UClass* ObjectClass = GetObjectClassByFactory(FactoryClass);
+	if (!ensureMsgf(ObjectClass, TEXT("ASSERT: [%i] %s:\n'ObjectClass' is not set for next factory: %s"), __LINE__, *FString(__FUNCTION__), *FactoryClass->GetName()))
+	{
+		return;
+	}
+
+	UPoolFactory_UObject* NewFactory = NewObject<UPoolFactory_UObject>(this, FactoryClass);
+	AllFactoriesInternal.Emplace(ObjectClass, NewFactory);
+}
+
+// Removes factory from the Pool Manager by its class
+void UPoolManagerSubsystem::RemoveFactory(TSubclassOf<UPoolFactory_UObject> FactoryClass)
+{
+	const UClass* ObjectClass = GetObjectClassByFactory(FactoryClass);
+	if (!ensureMsgf(ObjectClass, TEXT("ASSERT: [%i] %s:\n'ObjectClass' is not set for next factory: %s"), __LINE__, *FString(__FUNCTION__), *FactoryClass->GetName()))
+	{
+		return;
+	}
+
+	const TObjectPtr<UPoolFactory_UObject>* FactoryPtr = AllFactoriesInternal.Find(ObjectClass);
+	if (!ensureMsgf(FactoryPtr, TEXT("ASSERT: [%i] %s:\nFactory is not found for next class: %s"), __LINE__, *FString(__FUNCTION__), *ObjectClass->GetName()))
+	{
+		return;
+	}
+
+	UPoolFactory_UObject* Factory = *FactoryPtr;
+	if (IsValid(Factory))
+	{
+		Factory->ConditionalBeginDestroy();
+	}
+
+	AllFactoriesInternal.Remove(ObjectClass);
+}
+
+// Traverses the class hierarchy to find the closest registered factory for a given object type or its ancestors
+UPoolFactory_UObject* UPoolManagerSubsystem::FindPoolFactoryChecked(const UClass* ObjectClass) const
+{
+	checkf(ObjectClass, TEXT("ERROR: [%i] %s:\n'ObjectClass' is null!"), __LINE__, *FString(__FUNCTION__));
+
+	const TObjectPtr<UPoolFactory_UObject>* FoundFactory = nullptr;
+	const UClass* CurrentClass = ObjectClass;
+
+	// This loop will keep traversing up the hierarchy until a registered factory is found or the root is reached
+	while (CurrentClass != nullptr)
+	{
+		FoundFactory = AllFactoriesInternal.Find(CurrentClass);
+		if (FoundFactory)
+		{
+			break; // Exit the loop if a factory is found
+		}
+		CurrentClass = CurrentClass->GetSuperClass(); // Otherwise, move up the class hierarchy
+	}
+
+	checkf(FoundFactory, TEXT("ERROR: [%i] %s:\n'FoundFactory' is null for next object class: %s"), __LINE__, *FString(__FUNCTION__), *GetNameSafe(ObjectClass));
+	return *FoundFactory;
+}
+
+// Returns default class of object that is handled by given factory
+const UClass* UPoolManagerSubsystem::GetObjectClassByFactory(const TSubclassOf<UPoolFactory_UObject>& FactoryClass)
+{
+	if (!ensureMsgf(FactoryClass, TEXT("ASSERT: [%i] %s:\n'FactoryClass' is null!"), __LINE__, *FString(__FUNCTION__)))
 	{
 		return nullptr;
 	}
 
-	FPoolContainer* Pool = FindPool(ObjectClass);
-	if (!Pool)
-	{
-		const int32 PoolIndex = PoolsInternal.Emplace(FPoolContainer(ObjectClass));
-		Pool = &PoolsInternal[PoolIndex];
-	}
-
-	UObject* CreatedObject;
-	if (ObjectClass->IsChildOf<AActor>())
-	{
-		UClass* ClassToSpawn = const_cast<UClass*>(ObjectClass);
-		FActorSpawnParameters SpawnParameters;
-		SpawnParameters.OverrideLevel = World->PersistentLevel; // Always keep new objects on Persistent level
-		SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		SpawnParameters.bDeferConstruction = true; // Delay construction to add it to the pool first
-		CreatedObject = World->SpawnActor(ClassToSpawn, &Transform, SpawnParameters);
-	}
-	else
-	{
-		CreatedObject = NewObject<UObject>(World, ObjectClass);
-	}
-
-	checkf(CreatedObject, TEXT("CRITICAL ERROR: %s: 'CreatedObject' is not valid"), *FString(__FUNCTION__))
-
-	FPoolObjectData PoolObjectData;
-	PoolObjectData.PoolObject = CreatedObject;
-	// Set activity here instead of calling UPoolManagerSubsystem::SetActive since new object never was inactivated before to switch the state
-	PoolObjectData.bIsActive = PoolObjectState == EPoolObjectState::Active;
-	Pool->PoolObjects.Emplace(MoveTemp(PoolObjectData));
-
-	if (AActor* SpawnedActor = Cast<AActor>(CreatedObject))
-	{
-		// Call construction script since it was delayed before to add it to the pool first
-		SpawnedActor->FinishSpawning(Transform);
-	}
-
-	return CreatedObject;
+	const UPoolFactory_UObject* FactoryCDO = CastChecked<UPoolFactory_UObject>(FactoryClass->GetDefaultObject());
+	return FactoryCDO->GetObjectClass();
 }
 
-// Destroy all object of a pool by a given class
-void UPoolManagerSubsystem::EmptyPool_Implementation(const UClass* ClassInPool)
+// Creates all possible Pool Factories to be used by the Pool Manager when dealing with objects
+void UPoolManagerSubsystem::InitializeAllFactories()
 {
-	FPoolContainer* Pool = FindPool(ClassInPool);
+	if (!AllFactoriesInternal.IsEmpty())
+	{
+		// Already initialized
+		return;
+	}
+
+	for (TObjectIterator<UClass> It; It; ++It)
+	{
+		if (!It->IsChildOf(UPoolFactory_UObject::StaticClass())
+			|| It->HasAnyClassFlags(CLASS_Abstract))
+		{
+			continue;
+		}
+
+		AddFactory(*It);
+	}
+}
+
+// Destroys all Pool Factories that are used by the Pool Manager when dealing with objects
+void UPoolManagerSubsystem::ClearAllFactories()
+{
+	for (const TTuple<TObjectPtr<const UClass>, TObjectPtr<UPoolFactory_UObject>>& FactoryIt : AllFactoriesInternal)
+	{
+		if (IsValid(FactoryIt.Value))
+		{
+			FactoryIt.Value->ConditionalBeginDestroy();
+		}
+	}
+
+	AllFactoriesInternal.Empty();
+}
+
+/*********************************************************************************************
+ * Empty Pool
+ ********************************************************************************************* */
+
+// Destroy all object of a pool by a given class
+void UPoolManagerSubsystem::EmptyPool_Implementation(const UClass* ObjectClass)
+{
+	FPoolContainer* Pool = FindPool(ObjectClass);
 	if (!ensureMsgf(Pool, TEXT("%s: 'Pool' is not valid"), *FString(__FUNCTION__)))
 	{
 		return;
 	}
 
+	UPoolFactory_UObject& Factory = Pool->GetFactoryChecked();
 	TArray<FPoolObjectData>& PoolObjects = Pool->PoolObjects;
 	for (int32 Index = PoolObjects.Num() - 1; Index >= 0; --Index)
 	{
 		UObject* ObjectIt = PoolObjects.IsValidIndex(Index) ? PoolObjects[Index].Get() : nullptr;
-		if (!IsValid(ObjectIt))
+		if (IsValid(ObjectIt))
 		{
-			continue;
-		}
-
-		if (AActor* Actor = Cast<AActor>(ObjectIt))
-		{
-			Actor->Destroy();
-		}
-		else
-		{
-			ObjectIt->ConditionalBeginDestroy();
+			Factory.Destroy(ObjectIt);
 		}
 	}
 
@@ -221,8 +338,8 @@ void UPoolManagerSubsystem::EmptyAllPools_Implementation()
 	const int32 PoolsNum = PoolsInternal.Num();
 	for (int32 Index = PoolsNum - 1; Index >= 0; --Index)
 	{
-		const UClass* ClassInPool = PoolsInternal.IsValidIndex(Index) ? PoolsInternal[Index].ClassInPool : nullptr;
-		EmptyPool(ClassInPool);
+		const UClass* ObjectClass = PoolsInternal.IsValidIndex(Index) ? PoolsInternal[Index].ObjectClass : nullptr;
+		EmptyPool(ObjectClass);
 	}
 
 	PoolsInternal.Empty();
@@ -239,7 +356,10 @@ void UPoolManagerSubsystem::EmptyAllByPredicate(const TFunctionRef<bool(const UO
 			continue;
 		}
 
-		TArray<FPoolObjectData>& PoolObjectsRef = PoolsInternal[PoolIndex].PoolObjects;
+		FPoolContainer& PoolIt = PoolsInternal[PoolIndex];
+		UPoolFactory_UObject& Factory = PoolIt.GetFactoryChecked();
+		TArray<FPoolObjectData>& PoolObjectsRef = PoolIt.PoolObjects;
+
 		const int32 ObjectsNum = PoolObjectsRef.Num();
 		for (int32 ObjectIndex = ObjectsNum - 1; ObjectIndex >= 0; --ObjectIndex)
 		{
@@ -250,62 +370,22 @@ void UPoolManagerSubsystem::EmptyAllByPredicate(const TFunctionRef<bool(const UO
 				continue;
 			}
 
-			if (AActor* Actor = Cast<AActor>(ObjectIt))
-			{
-				Actor->Destroy();
-			}
-			else
-			{
-				ObjectIt->ConditionalBeginDestroy();
-			}
+			Factory.Destroy(ObjectIt);
 
 			PoolObjectsRef.RemoveAt(ObjectIndex);
 		}
 	}
 }
 
-// Activates or deactivates the object if such object is handled by the Pool Manager
-void UPoolManagerSubsystem::SetActive(bool bShouldActivate, UObject* Object)
-{
-	const UWorld* World = Object ? Object->GetWorld() : nullptr;
-	if (!World)
-	{
-		return;
-	}
-
-	const UClass* ClassInPool = Object ? Object->GetClass() : nullptr;
-	FPoolContainer* Pool = FindPool(ClassInPool);
-	FPoolObjectData* PoolObject = Pool ? Pool->FindInPool(Object) : nullptr;
-	if (!PoolObject
-		|| !PoolObject->IsValid())
-	{
-		return;
-	}
-
-	PoolObject->bIsActive = bShouldActivate;
-
-	AActor* Actor = PoolObject->Get<AActor>();
-	if (!Actor)
-	{
-		return;
-	}
-
-	if (!bShouldActivate)
-	{
-		// SetCollisionEnabled is not replicated, client collides with hidden actor, so move it
-		Actor->SetActorLocation(VECTOR_HALF_WORLD_MAX);
-	}
-
-	Actor->SetActorHiddenInGame(!bShouldActivate);
-	Actor->SetActorEnableCollision(bShouldActivate);
-	Actor->SetActorTickEnabled(bShouldActivate);
-}
+/*********************************************************************************************
+ * Getters
+ ********************************************************************************************* */
 
 // Returns current state of specified object
 EPoolObjectState UPoolManagerSubsystem::GetPoolObjectState_Implementation(const UObject* Object) const
 {
-	const UClass* ClassInPool = Object ? Object->GetClass() : nullptr;
-	const FPoolContainer* Pool = FindPool(ClassInPool);
+	const UClass* ObjectClass = Object ? Object->GetClass() : nullptr;
+	const FPoolContainer* Pool = FindPool(ObjectClass);
 	const FPoolObjectData* PoolObject = Pool ? Pool->FindInPool(Object) : nullptr;
 
 	if (!PoolObject
@@ -324,9 +404,9 @@ bool UPoolManagerSubsystem::ContainsObjectInPool_Implementation(const UObject* O
 	return GetPoolObjectState(Object) != EPoolObjectState::None;
 }
 
-bool UPoolManagerSubsystem::ContainsClassInPool_Implementation(const UClass* ClassInPool) const
+bool UPoolManagerSubsystem::ContainsClassInPool_Implementation(const UClass* ObjectClass) const
 {
-	return FindPool(ClassInPool) != nullptr;
+	return FindPool(ObjectClass) != nullptr;
 }
 
 // Returns true if specified object is handled by the Pool Manager and was taken from its pool
@@ -341,38 +421,22 @@ bool UPoolManagerSubsystem::IsFreeObjectInPool_Implementation(const UObject* Obj
 	return GetPoolObjectState(Object) == EPoolObjectState::Inactive;
 }
 
-// Returns first object contained in the Pool by its class that is inactive and ready to be taken from pool
-UObject* UPoolManagerSubsystem::GetFreeObjectInPool_Implementation(const UClass* ObjectClass) const
-{
-	const FPoolContainer* Pool = FindPool(ObjectClass);
-	if (!Pool)
-	{
-		return nullptr;
-	}
-
-	// Try to find ready object to return
-	for (const FPoolObjectData& PoolObjectIt : Pool->PoolObjects)
-	{
-		if (PoolObjectIt.IsFree())
-		{
-			return PoolObjectIt.Get();
-		}
-	}
-
-	// There is no free object to be taken
-	return nullptr;
-}
-
 // Returns true if object is known by Pool Manager
 bool UPoolManagerSubsystem::IsRegistered_Implementation(const UObject* Object) const
 {
 	return GetPoolObjectState(Object) != EPoolObjectState::None;
 }
 
+/*********************************************************************************************
+ * Protected methods
+ ********************************************************************************************* */
+
 // Is called on initialization of the Pool Manager instance
 void UPoolManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+
+	InitializeAllFactories();
 
 #if WITH_EDITOR
 	if (GEditor
@@ -402,16 +466,52 @@ void UPoolManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 #endif // WITH_EDITOR
 }
 
-// Returns the pointer to found pool by specified class
-FPoolContainer* UPoolManagerSubsystem::FindPool(const UClass* ClassInPool)
+// Is called on deinitialization of the Pool Manager instance
+void UPoolManagerSubsystem::Deinitialize()
 {
-	if (!ClassInPool)
+	Super::Deinitialize();
+
+	ClearAllFactories();
+}
+
+// Returns the pointer to found pool by specified class
+FPoolContainer& UPoolManagerSubsystem::FindPoolOrAdd(const UClass* ObjectClass)
+{
+	if (FPoolContainer* Pool = FindPool(ObjectClass))
+	{
+		return *Pool;
+	}
+
+	FPoolContainer& Pool = PoolsInternal.AddDefaulted_GetRef();
+	Pool.ObjectClass = ObjectClass;
+	Pool.Factory = FindPoolFactoryChecked(ObjectClass);
+	return Pool;
+}
+
+// Returns the pointer to found pool by specified class
+FPoolContainer* UPoolManagerSubsystem::FindPool(const UClass* ObjectClass)
+{
+	if (!ObjectClass)
 	{
 		return nullptr;
 	}
 
-	return PoolsInternal.FindByPredicate([ClassInPool](const FPoolContainer& It)
+	return PoolsInternal.FindByPredicate([ObjectClass](const FPoolContainer& It)
 	{
-		return It.ClassInPool == ClassInPool;
+		return It.ObjectClass == ObjectClass;
 	});
+}
+
+// Activates or deactivates the object if such object is handled by the Pool Manager
+void UPoolManagerSubsystem::SetObjectStateInPool_Implementation(EPoolObjectState NewState, UObject* InObject, FPoolContainer& InPool)
+{
+	FPoolObjectData* PoolObject = InPool.FindInPool(InObject);
+	if (!ensureMsgf(PoolObject && PoolObject->IsValid(), TEXT("ASSERT: [%i] %s:\n'PoolObject' is not registered in given pool for class: %s"), __LINE__, *FString(__FUNCTION__), *GetNameSafe(InPool.ObjectClass)))
+	{
+		return;
+	}
+
+	PoolObject->bIsActive = NewState == EPoolObjectState::Active;
+
+	InPool.GetFactoryChecked().OnChangedStateInPool(NewState, InObject);
 }
