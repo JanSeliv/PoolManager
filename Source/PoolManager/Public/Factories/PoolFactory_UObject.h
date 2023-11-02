@@ -47,7 +47,7 @@ public:
 
 	/** Removes the first spawn request from the queue and returns it. */
 	UFUNCTION(BlueprintCallable, Category = "Pool Factory")
-	virtual void DequeueSpawnRequest(FSpawnRequest& OutRequest) { SpawnQueueInternal.Dequeue(OutRequest); }
+	virtual bool DequeueSpawnRequest(FSpawnRequest& OutRequest);
 
 	/** Returns true if the spawn queue is empty, so there are no spawn request at current moment. */
 	UFUNCTION(BlueprintPure, Category = "Pool Factory")
@@ -93,5 +93,8 @@ public:
 protected:
 	/** Request to spawn. */
 	TQueue<FSpawnRequest> SpawnQueueInternal;
+
+	/** Number of spawn requests in the queue. */
+	UPROPERTY(Transient)
 	int32 SpawnQueueSize = 0;
 };

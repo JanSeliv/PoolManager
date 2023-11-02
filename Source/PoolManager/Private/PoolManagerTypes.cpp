@@ -23,16 +23,11 @@ FPoolContainer::FPoolContainer(const UClass* InClass)
 }
 
 // Returns the pointer to the Pool element by specified object
-FPoolObjectData* FPoolContainer::FindInPool(const UObject* Object)
+FPoolObjectData* FPoolContainer::FindInPool(const UObject& Object)
 {
-	if (!Object)
+	return PoolObjects.FindByPredicate([&Object](const FPoolObjectData& It)
 	{
-		return nullptr;
-	}
-
-	return PoolObjects.FindByPredicate([Object](const FPoolObjectData& It)
-	{
-		return It.PoolObject == Object;
+		return It.PoolObject == &Object;
 	});
 }
 

@@ -99,8 +99,8 @@ struct POOLMANAGER_API FPoolContainer
 	TArray<FPoolObjectData> PoolObjects;
 
 	/** Returns the pointer to the Pool element by specified object. */
-	FPoolObjectData* FindInPool(const UObject* Object);
-	const FORCEINLINE FPoolObjectData* FindInPool(const UObject* Object) const { return const_cast<FPoolContainer*>(this)->FindInPool(Object); }
+	FPoolObjectData* FindInPool(const UObject& Object);
+	const FORCEINLINE FPoolObjectData* FindInPool(const UObject& Object) const { return const_cast<FPoolContainer*>(this)->FindInPool(Object); }
 
 	/** Returns factory or crashes as critical error if it is not set. */
 	UPoolFactory_UObject& GetFactoryChecked() const;
