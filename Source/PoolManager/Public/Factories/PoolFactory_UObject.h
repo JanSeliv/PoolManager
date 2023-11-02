@@ -45,6 +45,14 @@ public:
 	UObject* SpawnNow(const FSpawnRequest& Request);
 	virtual UObject* SpawnNow_Implementation(const FSpawnRequest& Request);
 
+	/** Removes the first spawn request from the queue and returns it. */
+	UFUNCTION(BlueprintCallable, Category = "Pool Factory")
+	virtual void DequeueSpawnRequest(FSpawnRequest& OutRequest) { SpawnQueueInternal.Dequeue(OutRequest); }
+
+	/** Returns true if the spawn queue is empty, so there are no spawn request at current moment. */
+	UFUNCTION(BlueprintPure, Category = "Pool Factory")
+	virtual FORCEINLINE bool IsSpawnQueueEmpty() const { return SpawnQueueInternal.IsEmpty(); }
+
 protected:
 	/** Is called on next frame to process a chunk of the spawn queue. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Factory", meta = (BlueprintProtected))
@@ -84,6 +92,6 @@ public:
 	 ********************************************************************************************* */
 protected:
 	/** Request to spawn. */
-	TQueue<FSpawnRequest> SpawnQueue;
+	TQueue<FSpawnRequest> SpawnQueueInternal;
 	int32 SpawnQueueSize = 0;
 };

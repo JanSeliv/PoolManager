@@ -38,11 +38,11 @@ struct POOLMANAGER_API FPoolObjectData
 	explicit FPoolObjectData(UObject* InPoolObject);
 
 	/** Is true whenever the object is taken from the pool. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient)
 	bool bIsActive = false;
 
 	/** The object that is handled by the pool. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient)
 	TObjectPtr<UObject> PoolObject = nullptr;
 
 	/** Returns true if the object is taken from the pool. */
@@ -87,15 +87,15 @@ struct POOLMANAGER_API FPoolContainer
 	explicit FPoolContainer(const UClass* InClass);
 
 	/** Class of all objects in this pool. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient)
 	TObjectPtr<const UClass> ObjectClass = nullptr;
 
 	/** Factory that manages objects for this pool. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient)
 	TObjectPtr<class UPoolFactory_UObject> Factory = nullptr;
 
 	/** All objects in this pool that are handled by the Pool Manager. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient)
 	TArray<FPoolObjectData> PoolObjects;
 
 	/** Returns the pointer to the Pool element by specified object. */
@@ -130,11 +130,11 @@ struct POOLMANAGER_API FSpawnRequest
 	GENERATED_BODY()
 
 	/** Class of the object to spawn. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient)
 	TObjectPtr<const UClass> Class = nullptr;
 
 	/** Transform of the object to spawn. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient)
 	FTransform Transform = FTransform::Identity;
 
 	// Contains the functions that are called when the object is spawned

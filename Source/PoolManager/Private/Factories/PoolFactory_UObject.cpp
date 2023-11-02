@@ -10,7 +10,7 @@
 void UPoolFactory_UObject::RequestSpawn_Implementation(const FSpawnRequest& Request)
 {
 	// Add request to queue
-	SpawnQueue.Enqueue(Request);
+	SpawnQueueInternal.Enqueue(Request);
 
 	// If this is the first object in the queue, schedule the OnNextTickProcessSpawn to be called on the next frame
 	// Creating UObjects on separate threads is not thread-safe and leads to problems with garbage collection,
@@ -54,14 +54,14 @@ void UPoolFactory_UObject::OnNextTickProcessSpawn_Implementation()
 	for (int32 Index = 0; Index < FMath::Min(ObjectsPerFrame, SpawnQueueSize); ++Index)
 	{
 		FSpawnRequest OutRequest;
-		SpawnQueue.Dequeue(OutRequest);
+		DequeueSpawnRequest(OutRequest);
 		SpawnNow(OutRequest);
 		--SpawnQueueSize;
 	}
 
 	// If there are more actors to spawn, schedule this function to be called again on the next frame
 	// Is deferred to next frame instead of doing it on other threads since spawning actors is not thread-safe operation
-	if (!SpawnQueue.IsEmpty())
+	if (!SpawnQueueInternal.IsEmpty())
 	{
 		const UWorld* World = GetWorld();
 		checkf(World, TEXT("ERROR: [%i] %s:\n'World' is null!"), __LINE__, *FString(__FUNCTION__));
