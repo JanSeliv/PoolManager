@@ -144,9 +144,19 @@ void UPoolManagerSubsystem::ReturnToPool_Implementation(UObject* Object)
 		return;
 	}
 
-	Pool->GetFactoryChecked().OnReturnToPool(Object);
+	UPoolFactory_UObject& Factory = Pool->GetFactoryChecked();
+	Factory.OnReturnToPool(Object);
 
 	SetObjectStateInPool(EPoolObjectState::Inactive, Object, *Pool);
+
+	if (!Factory.IsSpawnQueueEmpty())
+	{
+		// Spawn queue is not empty
+		// Take this object back from the pool instead of creating new one 
+		FSpawnRequest OutRequest;
+		Factory.DequeueSpawnRequest(OutRequest);
+		TakeFromPool(OutRequest.Class, OutRequest.Transform, OutRequest.Callbacks.OnPostSpawned);
+	}
 }
 
 /*********************************************************************************************
@@ -182,8 +192,8 @@ bool UPoolManagerSubsystem::RegisterObjectInPool_Implementation(UObject* Object,
 void UPoolManagerSubsystem::CreateNewObjectInPool_Implementation(FSpawnRequest& InRequest)
 {
 	// Always register new object in pool once it is spawned
-	const TWeakObjectPtr<ThisClass> WeakThis = this;
-	InRequest.Callbacks.OnPreConstructed = [WeakThis, InRequest](UObject* Object)
+	const TWeakObjectPtr<ThisClass> WeakThis(this);
+	InRequest.Callbacks.OnPreConstructed = [WeakThis](UObject* Object)
 	{
 		if (UPoolManagerSubsystem* PoolManager = WeakThis.Get())
 		{
@@ -191,7 +201,8 @@ void UPoolManagerSubsystem::CreateNewObjectInPool_Implementation(FSpawnRequest& 
 		}
 	};
 
-	FindPoolOrAdd(InRequest.Class).GetFactoryChecked().RequestSpawn(InRequest);
+	const FPoolContainer& Pool = FindPoolOrAdd(InRequest.Class);
+	Pool.GetFactoryChecked().RequestSpawn(InRequest);
 }
 
 /*********************************************************************************************
@@ -421,10 +432,51 @@ bool UPoolManagerSubsystem::IsFreeObjectInPool_Implementation(const UObject* Obj
 	return GetPoolObjectState(Object) == EPoolObjectState::Inactive;
 }
 
+// Returns number of free objects in pool by specified class
+int32 UPoolManagerSubsystem::GetFreeObjectsNum_Implementation(const UClass* ObjectClass) const
+{
+	const FPoolContainer* Pool = FindPool(ObjectClass);
+	if (!Pool)
+	{
+		return 0;
+	}
+
+	int32 FreeObjectsNum = 0;
+	for (const FPoolObjectData& PoolObjectIt : Pool->PoolObjects)
+	{
+		if (PoolObjectIt.IsFree())
+		{
+			++FreeObjectsNum;
+		}
+	}
+	return FreeObjectsNum;
+}
+
 // Returns true if object is known by Pool Manager
 bool UPoolManagerSubsystem::IsRegistered_Implementation(const UObject* Object) const
 {
 	return GetPoolObjectState(Object) != EPoolObjectState::None;
+}
+
+// Returns number of registered objects in pool by specified class
+int32 UPoolManagerSubsystem::GetRegisteredObjectsNum_Implementation(const UClass* ObjectClass) const
+{
+	const FPoolContainer* Pool = FindPool(ObjectClass);
+	if (!Pool)
+	{
+		return 0;
+	}
+
+	int32 RegisteredObjectsNum = 0;
+	for (const FPoolObjectData& PoolObjectIt : Pool->PoolObjects)
+	{
+		if (PoolObjectIt.IsValid())
+		{
+			++RegisteredObjectsNum;
+		}
+	}
+
+	return RegisteredObjectsNum;
 }
 
 /*********************************************************************************************
@@ -445,8 +497,8 @@ void UPoolManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	{
 		// Editor pool manager instance has different lifetime than PIE pool manager instance,
 		// So, to prevent memory leaks, clear all pools on switching levels in Editor
-		TWeakObjectPtr<UPoolManagerSubsystem> WeakPoolManager(this);
-		auto OnWorldDestroyed = [WeakPoolManager](const UWorld* World)
+		const TWeakObjectPtr<ThisClass> WeakThis(this);
+		auto OnWorldDestroyed = [WeakThis](const UWorld* World)
 		{
 			if (!World || !World->IsEditorWorld()
 				|| !GEditor || GEditor->IsPlaySessionInProgress())
@@ -455,7 +507,7 @@ void UPoolManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 				return;
 			}
 
-			if (UPoolManagerSubsystem* PoolManager = WeakPoolManager.Get())
+			if (UPoolManagerSubsystem* PoolManager = WeakThis.Get())
 			{
 				PoolManager->EmptyAllPools();
 			}
@@ -491,7 +543,7 @@ FPoolContainer& UPoolManagerSubsystem::FindPoolOrAdd(const UClass* ObjectClass)
 // Returns the pointer to found pool by specified class
 FPoolContainer* UPoolManagerSubsystem::FindPool(const UClass* ObjectClass)
 {
-	if (!ObjectClass)
+	if (!ensureMsgf(ObjectClass, TEXT("ASSERT: [%i] %s:\n'ObjectClass' is null!"), __LINE__, *FString(__FUNCTION__)))
 	{
 		return nullptr;
 	}

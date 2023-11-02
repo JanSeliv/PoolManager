@@ -1,4 +1,4 @@
-﻿// Copyright (c) Yevhenii Selivanov
+// Copyright (c) Yevhenii Selivanov
 
 #pragma once
 
@@ -207,10 +207,20 @@ public:
 	bool IsFreeObjectInPool(const UObject* Object) const;
 	virtual bool IsFreeObjectInPool_Implementation(const UObject* Object) const;
 
+	/** Returns number of free objects in pool by specified class. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Pool Manager")
+	int32 GetFreeObjectsNum(const UClass* ObjectClass) const;
+	virtual int32 GetFreeObjectsNum_Implementation(const UClass* ObjectClass) const;
+
 	/** Returns true if object is known by Pool Manager. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Pool Manager", meta = (DefaultToSelf = "Object"))
 	bool IsRegistered(const UObject* Object) const;
 	virtual bool IsRegistered_Implementation(const UObject* Object) const;
+
+	/** Returns number of registered objects in pool by specified class. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Pool Manager")
+	int32 GetRegisteredObjectsNum(const UClass* ObjectClass) const;
+	virtual int32 GetRegisteredObjectsNum_Implementation(const UClass* ObjectClass) const;
 
 	/*********************************************************************************************
 	 * Protected properties
