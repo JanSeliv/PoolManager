@@ -130,7 +130,7 @@ UObject* UPoolManagerSubsystem::TakeFromPoolOrNull_Implementation(const UClass* 
 
 	Pool->GetFactoryChecked().OnTakeFromPool(FoundObject, Transform);
 
-	SetObjectStateInPool(EPoolObjectState::Active, FoundObject, *Pool);
+	SetObjectStateInPool(EPoolObjectState::Active, *FoundObject, *Pool);
 
 	return FoundObject;
 }
@@ -147,7 +147,7 @@ void UPoolManagerSubsystem::ReturnToPool_Implementation(UObject* Object)
 	UPoolFactory_UObject& Factory = Pool->GetFactoryChecked();
 	Factory.OnReturnToPool(Object);
 
-	SetObjectStateInPool(EPoolObjectState::Inactive, Object, *Pool);
+	SetObjectStateInPool(EPoolObjectState::Inactive, *Object, *Pool);
 
 	if (!Factory.IsSpawnQueueEmpty())
 	{
@@ -166,7 +166,7 @@ void UPoolManagerSubsystem::ReturnToPool_Implementation(UObject* Object)
 // Adds specified object as is to the pool by its class to be handled by the Pool Manager
 bool UPoolManagerSubsystem::RegisterObjectInPool_Implementation(UObject* Object, EPoolObjectState PoolObjectState/* = EPoolObjectState::Inactive*/)
 {
-	if (!Object)
+	if (!ensureMsgf(Object, TEXT("ASSERT: [%i] %s:\n'Object' is null, can't register!"), __LINE__, *FString(__FUNCTION__)))
 	{
 		return false;
 	}
@@ -174,7 +174,7 @@ bool UPoolManagerSubsystem::RegisterObjectInPool_Implementation(UObject* Object,
 	const UClass* ObjectClass = Object->GetClass();
 	FPoolContainer& Pool = FindPoolOrAdd(ObjectClass);
 
-	if (Pool.FindInPool(Object))
+	if (Pool.FindInPool(*Object))
 	{
 		// Already contains in pool
 		return false;
@@ -183,17 +183,19 @@ bool UPoolManagerSubsystem::RegisterObjectInPool_Implementation(UObject* Object,
 	FPoolObjectData& ObjectDataRef = Pool.PoolObjects.Emplace_GetRef(Object);
 	ObjectDataRef.bIsActive = PoolObjectState == EPoolObjectState::Active;
 
-	SetObjectStateInPool(PoolObjectState, Object, Pool);
+	SetObjectStateInPool(PoolObjectState, *Object, Pool);
 
 	return true;
 }
 
 // Always creates new object and adds it to the pool by its class
-void UPoolManagerSubsystem::CreateNewObjectInPool_Implementation(FSpawnRequest& InRequest)
+void UPoolManagerSubsystem::CreateNewObjectInPool_Implementation(const FSpawnRequest& InRequest)
 {
+	FSpawnRequest Request = InRequest;
+
 	// Always register new object in pool once it is spawned
 	const TWeakObjectPtr<ThisClass> WeakThis(this);
-	InRequest.Callbacks.OnPreConstructed = [WeakThis](UObject* Object)
+	Request.Callbacks.OnPreConstructed = [WeakThis](UObject* Object)
 	{
 		if (UPoolManagerSubsystem* PoolManager = WeakThis.Get())
 		{
@@ -201,8 +203,8 @@ void UPoolManagerSubsystem::CreateNewObjectInPool_Implementation(FSpawnRequest& 
 		}
 	};
 
-	const FPoolContainer& Pool = FindPoolOrAdd(InRequest.Class);
-	Pool.GetFactoryChecked().RequestSpawn(InRequest);
+	const FPoolContainer& Pool = FindPoolOrAdd(Request.Class);
+	Pool.GetFactoryChecked().RequestSpawn(Request);
 }
 
 /*********************************************************************************************
@@ -397,7 +399,7 @@ EPoolObjectState UPoolManagerSubsystem::GetPoolObjectState_Implementation(const 
 {
 	const UClass* ObjectClass = Object ? Object->GetClass() : nullptr;
 	const FPoolContainer* Pool = FindPool(ObjectClass);
-	const FPoolObjectData* PoolObject = Pool ? Pool->FindInPool(Object) : nullptr;
+	const FPoolObjectData* PoolObject = Pool ? Pool->FindInPool(*Object) : nullptr;
 
 	if (!PoolObject
 		|| !PoolObject->IsValid())
@@ -555,7 +557,7 @@ FPoolContainer* UPoolManagerSubsystem::FindPool(const UClass* ObjectClass)
 }
 
 // Activates or deactivates the object if such object is handled by the Pool Manager
-void UPoolManagerSubsystem::SetObjectStateInPool_Implementation(EPoolObjectState NewState, UObject* InObject, FPoolContainer& InPool)
+void UPoolManagerSubsystem::SetObjectStateInPool(EPoolObjectState NewState, UObject& InObject, FPoolContainer& InPool)
 {
 	FPoolObjectData* PoolObject = InPool.FindInPool(InObject);
 	if (!ensureMsgf(PoolObject && PoolObject->IsValid(), TEXT("ASSERT: [%i] %s:\n'PoolObject' is not registered in given pool for class: %s"), __LINE__, *FString(__FUNCTION__), *GetNameSafe(InPool.ObjectClass)))
@@ -565,5 +567,5 @@ void UPoolManagerSubsystem::SetObjectStateInPool_Implementation(EPoolObjectState
 
 	PoolObject->bIsActive = NewState == EPoolObjectState::Active;
 
-	InPool.GetFactoryChecked().OnChangedStateInPool(NewState, InObject);
+	InPool.GetFactoryChecked().OnChangedStateInPool(NewState, &InObject);
 }

@@ -29,10 +29,13 @@ UObject* UPoolFactory_Actor::SpawnNow_Implementation(const FSpawnRequest& Reques
 	checkf(World, TEXT("ERROR: [%i] %s:\n'World' is null!"), __LINE__, *FString(__FUNCTION__));
 
 	const TSubclassOf<AActor> ClassToSpawn = const_cast<UClass*>(Request.Class.Get());
+	checkf(ClassToSpawn, TEXT("ERROR: [%i] %s:\n'ClassToSpawn' is null!"), __LINE__, *FString(__FUNCTION__));
+
 	FActorSpawnParameters SpawnParameters;
 	SpawnParameters.OverrideLevel = World->PersistentLevel; // Always keep new objects on Persistent level
 	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	SpawnParameters.bDeferConstruction = true; // Delay construction to add it to the pool first
+	SpawnParameters.bNoFail = true; // Do not fail if spawn fails
 	AActor* NewActor = World->SpawnActor(ClassToSpawn, &Request.Transform, SpawnParameters);
 	checkf(NewActor, TEXT("ERROR: [%i] %s:\n'NewActor' was not spawned!"), __LINE__, *FString(__FUNCTION__));
 

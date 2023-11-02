@@ -42,6 +42,13 @@ UObject* UPoolFactory_UObject::SpawnNow_Implementation(const FSpawnRequest& Requ
 	return CreatedObject;
 }
 
+// Removes the first spawn request from the queue and returns it
+bool UPoolFactory_UObject::DequeueSpawnRequest(FSpawnRequest& OutRequest)
+{
+	--SpawnQueueSize;
+	return SpawnQueueInternal.Dequeue(OutRequest);
+}
+
 // Is called on next frame to process a chunk of the spawn queue
 void UPoolFactory_UObject::OnNextTickProcessSpawn_Implementation()
 {
@@ -54,9 +61,10 @@ void UPoolFactory_UObject::OnNextTickProcessSpawn_Implementation()
 	for (int32 Index = 0; Index < FMath::Min(ObjectsPerFrame, SpawnQueueSize); ++Index)
 	{
 		FSpawnRequest OutRequest;
-		DequeueSpawnRequest(OutRequest);
-		SpawnNow(OutRequest);
-		--SpawnQueueSize;
+		if (DequeueSpawnRequest(OutRequest))
+		{
+			SpawnNow(OutRequest);
+		}
 	}
 
 	// If there are more actors to spawn, schedule this function to be called again on the next frame

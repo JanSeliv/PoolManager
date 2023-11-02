@@ -1,4 +1,4 @@
-// Copyright (c) Yevhenii Selivanov
+﻿// Copyright (c) Yevhenii Selivanov
 
 #pragma once
 
@@ -126,9 +126,9 @@ public:
 
 	/** Always creates new object and adds it to the pool by its class.
 	 * Use carefully if only there is no free objects contained in pool. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Manager", meta = (DisplayName = "Create New Object In Pool", DefaultToSelf = "Object"))
-	void CreateNewObjectInPool(UPARAM(ref) FSpawnRequest& InRequest);
-	virtual void CreateNewObjectInPool_Implementation(UPARAM(ref) FSpawnRequest& InRequest);
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Manager", meta = (AutoCreateRefTerm = "InRequest"))
+	void CreateNewObjectInPool(const FSpawnRequest& InRequest);
+	virtual void CreateNewObjectInPool_Implementation(const FSpawnRequest& InRequest);
 
 	/*********************************************************************************************
 	 * Advanced - Factories
@@ -254,8 +254,7 @@ protected:
 	 * Is called when the object is taken from, registered or returned to the pool.
 	 * @param NewState If true, the object will be activated, otherwise deactivated.
 	 * @param InObject The object to activate or deactivate.
-	 * @param InPool The pool that contains the object. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Pool Manager", meta = (DefaultToSelf = "Object"))
-	void SetObjectStateInPool(EPoolObjectState NewState, UObject* InObject, UPARAM(ref) FPoolContainer& InPool);
-	virtual void SetObjectStateInPool_Implementation(EPoolObjectState NewState, UObject* InObject, FPoolContainer& InPool);
+	 * @param InPool The pool that contains the object.
+	 * @warning Do not call it directly, use TakeFromPool() or ReturnToPool() instead. */
+	virtual void SetObjectStateInPool(EPoolObjectState NewState, UObject& InObject, UPARAM(ref) FPoolContainer& InPool);
 };
