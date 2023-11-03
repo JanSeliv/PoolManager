@@ -158,6 +158,10 @@ struct POOLMANAGER_API FPoolContainer
 	FPoolObjectData* FindInPool(const UObject& Object);
 	const FORCEINLINE FPoolObjectData* FindInPool(const UObject& Object) const { return const_cast<FPoolContainer*>(this)->FindInPool(Object); }
 
+	/** Returns the pointer to the Pool element by specified handle. */
+	FPoolObjectData* FindInPool(const FPoolObjectHandle& Handle);
+	const FORCEINLINE FPoolObjectData* FindInPool(const FPoolObjectHandle& Handle) const { return const_cast<FPoolContainer*>(this)->FindInPool(Handle); }
+
 	/** Returns factory or crashes as critical error if it is not set. */
 	UPoolFactory_UObject& GetFactoryChecked() const;
 

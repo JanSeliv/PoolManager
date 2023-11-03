@@ -49,6 +49,20 @@ FPoolObjectData* FPoolContainer::FindInPool(const UObject& Object)
 	});
 }
 
+// Returns the pointer to the Pool element by specified handle
+FPoolObjectData* FPoolContainer::FindInPool(const FPoolObjectHandle& Handle)
+{
+	if (!ensureMsgf(Handle.IsValid(), TEXT("ASSERT: [%i] %s:\n'Handle' is not valid!"), __LINE__, *FString(__FUNCTION__)))
+	{
+		return nullptr;
+	}
+	
+	return PoolObjects.FindByPredicate([&Handle](const FPoolObjectData& PoolObjectIt)
+	{
+		return PoolObjectIt.Handle == Handle;
+	});
+}
+
 // Returns factory or crashes as critical error if it is not set
 UPoolFactory_UObject& FPoolContainer::GetFactoryChecked() const
 {
