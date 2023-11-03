@@ -167,23 +167,22 @@ bool UPoolManagerSubsystem::ReturnToPool_Implementation(UObject* Object)
 // Alternative to ReturnToPool() to return object to the pool by its handle
 bool UPoolManagerSubsystem::ReturnToPool(const FPoolObjectHandle& Handle)
 {
-	if (UObject* PoolObject = FindPoolObjectByHandle(Handle))
+	const FPoolContainer* Pool = FindPool(Handle.GetObjectClass());
+	if (!Pool)
 	{
-		return ReturnToPool(PoolObject);
+		// Pool is not registered
+		return false;
 	}
 
-	// Object is not found, attempt to cancel spawn request if is in queue
-	for (const TTuple<TObjectPtr<const UClass>, TObjectPtr<UPoolFactory_UObject>>& It : AllFactoriesInternal)
+	if (const FPoolObjectData* ObjectData = Pool->FindInPool(Handle))
 	{
-		FSpawnRequest OutRequest;
-		if (It.Value && It.Value->DequeueSpawnRequestByHandle(Handle, OutRequest))
-		{
-			// Spawn request is found and removed from the queue
-			return true;
-		}
+		return ReturnToPool(ObjectData->PoolObject);
 	}
 
-	return false;
+	// It's exclusive feature of Handles:
+	// cancel spawn request if object returns to pool faster than it is spawned
+	FSpawnRequest OutRequest;
+	return Pool->GetFactoryChecked().DequeueSpawnRequestByHandle(Handle, OutRequest);
 }
 
 /*********************************************************************************************
@@ -529,25 +528,9 @@ int32 UPoolManagerSubsystem::GetRegisteredObjectsNum_Implementation(const UClass
 // Returns the object associated with given handle
 UObject* UPoolManagerSubsystem::FindPoolObjectByHandle(const FPoolObjectHandle& Handle) const
 {
-	if (!Handle.IsValid())
-	{
-		// Handle is empty, nothing to find
-		return nullptr;
-	}
-
 	const FPoolContainer* Pool = FindPool(Handle.GetObjectClass());
-	if (!Pool)
-	{
-		// Pool is not registered
-		return nullptr;
-	}
-
-	const FPoolObjectData* FoundData = Pool->PoolObjects.FindByPredicate([&Handle](const FPoolObjectData& PoolObjectIt)
-	{
-		return PoolObjectIt.Handle == Handle;
-	});
-
-	return FoundData ? FoundData->PoolObject : nullptr;
+	const FPoolObjectData* PoolObject = Pool ? Pool->FindInPool(Handle) : nullptr;
+	return PoolObject ? PoolObject->PoolObject : nullptr;
 }
 
 /*********************************************************************************************
