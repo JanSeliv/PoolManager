@@ -90,23 +90,31 @@ public:
 
 	/** Is code-overridable version of TakeFromPool() that calls callback functions when the object is ready.
 	 * Can be overridden by child code classes.
-	 * Is useful in code with blueprint classes, e.g: TakeFromPool(SomeBlueprintClass); */
-	virtual void TakeFromPool(const UClass* ObjectClass, const FTransform& Transform = FTransform::Identity, const TFunction<void(UObject*)>& Completed = nullptr);
+	 * Is useful in code with blueprint classes, e.g: TakeFromPool(SomeBlueprintClass);
+	 * @return Handle to the object with the Hash associated with the object, is indirect since the object could be not ready yet. */
+	virtual FPoolObjectHandle TakeFromPool(const UClass* ObjectClass, const FTransform& Transform = FTransform::Identity, const FOnSpawnCallback& Completed = nullptr);
 
 	/** A templated alternative to get the object from a pool by class in template.
 	 * Is useful in code with code classes, e.g: TakeFromPool<AProjectile>(); */
 	template <typename T>
-	void TakeFromPool(const FTransform& Transform = FTransform::Identity, const TFunction<void(UObject*)>& Completed = nullptr) { return TakeFromPool(T::StaticClass(), Transform, Completed); }
+	FPoolObjectHandle TakeFromPool(const FTransform& Transform = FTransform::Identity, const FOnSpawnCallback& Completed = nullptr) { return TakeFromPool(T::StaticClass(), Transform, Completed); }
 
-	/** Is blueprint-overridable version of TakeFromPool() to find object in pool or return null. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Manager", meta = (AutoCreateRefTerm = "Transform"))
-	UObject* TakeFromPoolOrNull(const UClass* ObjectClass, const FTransform& Transform);
+	/** Is alternative version of TakeFromPool() to find object in pool or return null. */
+	virtual const FPoolObjectData* TakeFromPoolOrNull(const UClass* ObjectClass, const FTransform& Transform);
 
 public:
-	/** Returns the specified object to the pool and deactivates it if the object was taken from the pool before. */
+	/** Returns the specified object to the pool and deactivates it if the object was taken from the pool before.
+	 * @param Object The object to return to the pool.
+	 * @return true if pool was found and returned successfully, otherwise false. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Manager", meta = (DefaultToSelf = "Object"))
-	void ReturnToPool(UObject* Object);
-	virtual void ReturnToPool_Implementation(UObject* Object);
+	bool ReturnToPool(UObject* Object);
+	virtual bool ReturnToPool_Implementation(UObject* Object);
+
+	/** Alternative to ReturnToPool() to return object to the pool by its handle.
+	 * Is useful in case when you don't have a reference to the object but have its handle.
+	 * @param Handle The handle associated with the object to return to the pool.
+	 * @return true if handle was found and return successfully, otherwise false. */
+	virtual bool ReturnToPool(const FPoolObjectHandle& Handle);
 
 	/*********************************************************************************************
 	 * Advanced
@@ -118,17 +126,19 @@ public:
 	 * Should not be used directly in most cases since is called automatically.
 	 * Could be useful to add already existed objects (spawned by outer code) to the pool.
 	 * It's designed to be used only on already existed objects unknown for the Pool Manager.
-	 * @param Object The object to register in the pool.
-	 * @param PoolObjectState The state of the object to register in the pool. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Manager", meta = (DefaultToSelf = "Object"))
-	bool RegisterObjectInPool(UObject* Object = nullptr, EPoolObjectState PoolObjectState = EPoolObjectState::Inactive);
-	virtual bool RegisterObjectInPool_Implementation(UObject* Object = nullptr, EPoolObjectState PoolObjectState = EPoolObjectState::Inactive);
+	 * @param InData The data with the object to register in the pool.
+	 * @return true if registered successfully, otherwise false. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Manager", meta = (AutoCreateRefTerm = "InData"))
+	bool RegisterObjectInPool(const FPoolObjectData& InData);
+	virtual bool RegisterObjectInPool_Implementation(const FPoolObjectData& InData);
 
 	/** Always creates new object and adds it to the pool by its class.
-	 * Use carefully if only there is no free objects contained in pool. */
+	 * Use carefully if only there is no free objects contained in pool.
+	 * @param InRequest The request to spawn new object.
+	 * @return Handle to the object with the hash associated with object to be spawned next frames. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Manager", meta = (AutoCreateRefTerm = "InRequest"))
-	void CreateNewObjectInPool(const FSpawnRequest& InRequest);
-	virtual void CreateNewObjectInPool_Implementation(const FSpawnRequest& InRequest);
+	FPoolObjectHandle CreateNewObjectInPool(const FSpawnRequest& InRequest);
+	virtual FPoolObjectHandle CreateNewObjectInPool_Implementation(const FSpawnRequest& InRequest);
 
 	/*********************************************************************************************
 	 * Advanced - Factories
@@ -221,6 +231,11 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Pool Manager")
 	int32 GetRegisteredObjectsNum(const UClass* ObjectClass) const;
 	virtual int32 GetRegisteredObjectsNum_Implementation(const UClass* ObjectClass) const;
+
+	/** Returns the object associated with given handle.
+	 * Can be null if not found or object is in spawning queue. */
+	UFUNCTION(BlueprintPure, Category = "Pool Manager")
+	UObject* FindPoolObjectByHandle(const FPoolObjectHandle& Handle) const;
 
 	/*********************************************************************************************
 	 * Protected properties

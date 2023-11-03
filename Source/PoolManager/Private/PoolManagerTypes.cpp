@@ -4,16 +4,34 @@
 //---
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PoolManagerTypes)
 
+// Empty pool object handle
+const FPoolObjectHandle FPoolObjectHandle::EmptyHandle = FPoolObjectHandle();
+
 // Empty pool object data
 const FPoolObjectData FPoolObjectData::EmptyObject = FPoolObjectData();
 
 // Empty pool data container
 const FPoolContainer FPoolContainer::EmptyPool = FPoolContainer();
 
+// Generates a new handle for the specified object class
+FPoolObjectHandle FPoolObjectHandle::NewHandle(const UClass& InObjectClass)
+{
+	FPoolObjectHandle Handle;
+	Handle.ObjectClass = &InObjectClass;
+	Handle.Hash = FGuid::NewGuid();
+	return Handle;
+}
+
 // Parameterized constructor that takes object to keep
 FPoolObjectData::FPoolObjectData(UObject* InPoolObject)
 {
 	PoolObject = InPoolObject;
+}
+
+// Returns the state of the object in the pool
+EPoolObjectState FPoolObjectData::GetState() const
+{
+	return bIsActive ? EPoolObjectState::Active : EPoolObjectState::Inactive;
 }
 
 // Parameterized constructor that takes a class of the pool
