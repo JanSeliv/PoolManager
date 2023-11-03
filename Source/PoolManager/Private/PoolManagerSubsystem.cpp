@@ -58,46 +58,47 @@ UPoolManagerSubsystem* UPoolManagerSubsystem::GetPoolManagerByClass(TSubclassOf<
 // Async version of TakeFromPool() that returns the object by specified class
 void UPoolManagerSubsystem::BPTakeFromPool(const UClass* ObjectClass, const FTransform& Transform, const FOnTakenFromPool& Completed)
 {
-	UObject* PoolObject = TakeFromPoolOrNull(ObjectClass, Transform);
-	if (PoolObject)
+	const FPoolObjectData* ObjectData = TakeFromPoolOrNull(ObjectClass, Transform);
+	if (ObjectData)
 	{
 		// Found in pool
-		Completed.ExecuteIfBound(PoolObject);
+		Completed.ExecuteIfBound(ObjectData->PoolObject);
 		return;
 	}
 
 	FSpawnRequest Request;
 	Request.Class = ObjectClass;
 	Request.Transform = Transform;
-	Request.Callbacks.OnPostSpawned = [Completed](UObject* SpawnedObject)
+	Request.Callbacks.OnPostSpawned = [Completed](const FPoolObjectData& ObjectData)
 	{
-		Completed.ExecuteIfBound(SpawnedObject);
+		Completed.ExecuteIfBound(ObjectData.PoolObject);
 	};
 	CreateNewObjectInPool(Request);
 }
 
 // Is code async version of TakeFromPool() that calls callback functions when the object is ready
-void UPoolManagerSubsystem::TakeFromPool(const UClass* ObjectClass, const FTransform& Transform/* = FTransform::Identity*/, const TFunction<void(UObject*)>& Completed/* = nullptr*/)
+FPoolObjectHandle UPoolManagerSubsystem::TakeFromPool(const UClass* ObjectClass, const FTransform& Transform/* = FTransform::Identity*/, const FOnSpawnCallback& Completed/* = nullptr*/)
 {
-	UObject* PoolObject = TakeFromPoolOrNull(ObjectClass, Transform);
-	if (PoolObject)
+	const FPoolObjectData* ObjectData = TakeFromPoolOrNull(ObjectClass, Transform);
+	if (ObjectData)
 	{
 		if (Completed != nullptr)
 		{
-			Completed(PoolObject);
+			Completed(*ObjectData);
 		}
-		return;
+
+		return ObjectData->Handle;
 	}
 
 	FSpawnRequest Request;
 	Request.Class = ObjectClass;
 	Request.Transform = Transform;
 	Request.Callbacks.OnPostSpawned = Completed;
-	CreateNewObjectInPool(Request);
+	return CreateNewObjectInPool(Request);
 }
 
 // Is internal function to find object in pool or return null
-UObject* UPoolManagerSubsystem::TakeFromPoolOrNull_Implementation(const UClass* ObjectClass, const FTransform& Transform)
+const FPoolObjectData* UPoolManagerSubsystem::TakeFromPoolOrNull(const UClass* ObjectClass, const FTransform& Transform)
 {
 	if (!ensureMsgf(ObjectClass, TEXT("%s: 'ObjectClass' is not specified"), *FString(__FUNCTION__)))
 	{
@@ -112,36 +113,38 @@ UObject* UPoolManagerSubsystem::TakeFromPoolOrNull_Implementation(const UClass* 
 	}
 
 	// Try to find first object contained in the Pool by its class that is inactive and ready to be taken from pool
-	UObject* FoundObject = nullptr;
-	for (const FPoolObjectData& PoolObjectIt : Pool->PoolObjects)
+	const FPoolObjectData* FoundData = nullptr;
+	for (const FPoolObjectData& DataIt : Pool->PoolObjects)
 	{
-		if (PoolObjectIt.IsFree())
+		if (DataIt.IsFree())
 		{
-			FoundObject = PoolObjectIt.Get();
+			FoundData = &DataIt;
 			break;
 		}
 	}
 
-	if (!FoundObject)
+	if (!FoundData)
 	{
 		// No free objects in pool
 		return nullptr;
 	}
 
-	Pool->GetFactoryChecked().OnTakeFromPool(FoundObject, Transform);
+	UObject& InObject = FoundData->GetChecked();
 
-	SetObjectStateInPool(EPoolObjectState::Active, *FoundObject, *Pool);
+	Pool->GetFactoryChecked().OnTakeFromPool(&InObject, Transform);
 
-	return FoundObject;
+	SetObjectStateInPool(EPoolObjectState::Active, InObject, *Pool);
+
+	return FoundData;
 }
 
 // Returns the specified object to the pool and deactivates it if the object was taken from the pool before
-void UPoolManagerSubsystem::ReturnToPool_Implementation(UObject* Object)
+bool UPoolManagerSubsystem::ReturnToPool_Implementation(UObject* Object)
 {
 	FPoolContainer* Pool = Object ? FindPool(Object->GetClass()) : nullptr;
 	if (!ensureMsgf(Pool, TEXT("ASSERT: [%i] %s:\n'Pool' is not not registered for '%s' object, can not return it to pool!"), __LINE__, *FString(__FUNCTION__), *GetNameSafe(Object)))
 	{
-		return;
+		return false;
 	}
 
 	UPoolFactory_UObject& Factory = Pool->GetFactoryChecked();
@@ -157,6 +160,30 @@ void UPoolManagerSubsystem::ReturnToPool_Implementation(UObject* Object)
 		Factory.DequeueSpawnRequest(OutRequest);
 		TakeFromPool(OutRequest.Class, OutRequest.Transform, OutRequest.Callbacks.OnPostSpawned);
 	}
+
+	return true;
+}
+
+// Alternative to ReturnToPool() to return object to the pool by its handle
+bool UPoolManagerSubsystem::ReturnToPool(const FPoolObjectHandle& Handle)
+{
+	if (UObject* PoolObject = FindPoolObjectByHandle(Handle))
+	{
+		return ReturnToPool(PoolObject);
+	}
+
+	// Object is not found, attempt to cancel spawn request if is in queue
+	for (const TTuple<TObjectPtr<const UClass>, TObjectPtr<UPoolFactory_UObject>>& It : AllFactoriesInternal)
+	{
+		FSpawnRequest OutRequest;
+		if (It.Value && It.Value->DequeueSpawnRequestByHandle(Handle, OutRequest))
+		{
+			// Spawn request is found and removed from the queue
+			return true;
+		}
+	}
+
+	return false;
 }
 
 /*********************************************************************************************
@@ -164,47 +191,65 @@ void UPoolManagerSubsystem::ReturnToPool_Implementation(UObject* Object)
  ********************************************************************************************* */
 
 // Adds specified object as is to the pool by its class to be handled by the Pool Manager
-bool UPoolManagerSubsystem::RegisterObjectInPool_Implementation(UObject* Object, EPoolObjectState PoolObjectState/* = EPoolObjectState::Inactive*/)
+bool UPoolManagerSubsystem::RegisterObjectInPool_Implementation(const FPoolObjectData& InData)
 {
-	if (!ensureMsgf(Object, TEXT("ASSERT: [%i] %s:\n'Object' is null, can't register!"), __LINE__, *FString(__FUNCTION__)))
+	if (!ensureMsgf(InData.PoolObject, TEXT("ASSERT: [%i] %s:\n'PoolObject' is not valid, can't registed it in the Pool!"), __LINE__, *FString(__FUNCTION__)))
 	{
 		return false;
 	}
 
-	const UClass* ObjectClass = Object->GetClass();
+	const UClass* ObjectClass = InData.PoolObject.GetClass();
 	FPoolContainer& Pool = FindPoolOrAdd(ObjectClass);
 
-	if (Pool.FindInPool(*Object))
+	if (Pool.FindInPool(*InData.PoolObject))
 	{
 		// Already contains in pool
 		return false;
 	}
 
-	FPoolObjectData& ObjectDataRef = Pool.PoolObjects.Emplace_GetRef(Object);
-	ObjectDataRef.bIsActive = PoolObjectState == EPoolObjectState::Active;
+	FPoolObjectData Data = InData;
+	if (!Data.Handle.IsValid())
+	{
+		// Hash can be unset that is fine, generate new one
+		Data.Handle = FPoolObjectHandle::NewHandle(*ObjectClass);
+	}
 
-	SetObjectStateInPool(PoolObjectState, *Object, Pool);
+	Pool.PoolObjects.Emplace(Data);
+
+	SetObjectStateInPool(Data.GetState(), *Data.PoolObject, Pool);
 
 	return true;
 }
 
 // Always creates new object and adds it to the pool by its class
-void UPoolManagerSubsystem::CreateNewObjectInPool_Implementation(const FSpawnRequest& InRequest)
+FPoolObjectHandle UPoolManagerSubsystem::CreateNewObjectInPool_Implementation(const FSpawnRequest& InRequest)
 {
+	if (!ensureMsgf(InRequest.Class, TEXT("ASSERT: [%i] %s:\n'Class' is not null in the Spawn Request!"), __LINE__, *FString(__FUNCTION__)))
+	{
+		return FPoolObjectHandle::EmptyHandle;
+	}
+
 	FSpawnRequest Request = InRequest;
+	if (!Request.Handle.IsValid())
+	{
+		// Hash can be unset that is fine, generate new one
+		Request.Handle = FPoolObjectHandle::NewHandle(*Request.Class);
+	}
 
 	// Always register new object in pool once it is spawned
 	const TWeakObjectPtr<ThisClass> WeakThis(this);
-	Request.Callbacks.OnPreConstructed = [WeakThis](UObject* Object)
+	Request.Callbacks.OnPreRegistered = [WeakThis](const FPoolObjectData& ObjectData)
 	{
 		if (UPoolManagerSubsystem* PoolManager = WeakThis.Get())
 		{
-			PoolManager->RegisterObjectInPool(Object, EPoolObjectState::Active);
+			PoolManager->RegisterObjectInPool(ObjectData);
 		}
 	};
 
 	const FPoolContainer& Pool = FindPoolOrAdd(Request.Class);
 	Pool.GetFactoryChecked().RequestSpawn(Request);
+
+	return Request.Handle;
 }
 
 /*********************************************************************************************
@@ -408,7 +453,7 @@ EPoolObjectState UPoolManagerSubsystem::GetPoolObjectState_Implementation(const 
 		return EPoolObjectState::None;
 	}
 
-	return PoolObject->IsActive() ? EPoolObjectState::Active : EPoolObjectState::Inactive;
+	return PoolObject->GetState();
 }
 
 // Returns true is specified object is handled by Pool Manager
@@ -479,6 +524,30 @@ int32 UPoolManagerSubsystem::GetRegisteredObjectsNum_Implementation(const UClass
 	}
 
 	return RegisteredObjectsNum;
+}
+
+// Returns the object associated with given handle
+UObject* UPoolManagerSubsystem::FindPoolObjectByHandle(const FPoolObjectHandle& Handle) const
+{
+	if (!Handle.IsValid())
+	{
+		// Handle is empty, nothing to find
+		return nullptr;
+	}
+
+	const FPoolContainer* Pool = FindPool(Handle.GetObjectClass());
+	if (!Pool)
+	{
+		// Pool is not registered
+		return nullptr;
+	}
+
+	const FPoolObjectData* FoundData = Pool->PoolObjects.FindByPredicate([&Handle](const FPoolObjectData& PoolObjectIt)
+	{
+		return PoolObjectIt.Handle == Handle;
+	});
+
+	return FoundData ? FoundData->PoolObject : nullptr;
 }
 
 /*********************************************************************************************

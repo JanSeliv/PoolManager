@@ -4,6 +4,8 @@
 
 #include "UObject/Object.h"
 //---
+#include "Misc/Guid.h"
+//---
 #include "PoolManagerTypes.generated.h"
 
 /**
@@ -18,6 +20,53 @@ enum class EPoolObjectState : uint8
 	Inactive,
 	///< Was taken from pool and can be returned back.
 	Active
+};
+
+/**
+ * A handle for managing pool object indirectly.
+ * - Provides a unique identifier, Hash, with associated object in the pool.
+ * - Enables tracking and control of objects within the Pool Manager system.
+ * - Useful in scenarios where object is requested from the pool and the handle is obtained immediately, 
+ *   even if the object spawning is delayed to a later frame or different thread.
+ */
+USTRUCT(BlueprintType)
+struct POOLMANAGER_API FPoolObjectHandle
+{
+	GENERATED_BODY()
+
+	/* Default constructor of empty handle. */
+	FPoolObjectHandle() = default;
+
+	/** Empty pool object handle. */
+	static const FPoolObjectHandle EmptyHandle;
+
+	/** Generates a new handle for the specified object class. */
+	static FPoolObjectHandle NewHandle(const UClass& InObjectClass);
+
+	/** Returns true if Hash is generated. */
+	FORCEINLINE bool IsValid() const { return ObjectClass && Hash.IsValid(); }
+
+	/** Empties the handle. */
+	void Invalidate() { *this = EmptyHandle; }
+
+	friend POOLMANAGER_API uint32 GetTypeHash(const FPoolObjectHandle& InHandle) { return GetTypeHash(InHandle.Hash); }
+	friend POOLMANAGER_API bool operator==(const FPoolObjectHandle& Lhs, const FPoolObjectHandle& Rhs) { return Lhs.Hash == Rhs.Hash; }
+
+	/*********************************************************************************************
+	 * Fields
+	 * Is private to prevent direct access to the fields, use NewHandle() instead.
+	 ********************************************************************************************* */
+public:
+	const UClass* GetObjectClass() const { return ObjectClass; }
+	const FGuid& GetHash() const { return Hash; }
+
+private:
+	/** Class of the object in the pool. */
+	UPROPERTY(Transient)
+	const UClass* ObjectClass = nullptr;
+
+	/** Generated hash for the object. */
+	FGuid Hash;
 };
 
 /**
@@ -45,14 +94,21 @@ struct POOLMANAGER_API FPoolObjectData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient)
 	TObjectPtr<UObject> PoolObject = nullptr;
 
+	/** The handle associated with this pool object for management within the Pool Manager system. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient)
+	FPoolObjectHandle Handle = FPoolObjectHandle::EmptyHandle;
+
 	/** Returns true if the object is taken from the pool. */
 	FORCEINLINE bool IsActive() const { return bIsActive && IsValid(); }
+
+	/** Returns the state of the object in the pool. */
+	EPoolObjectState GetState() const;
 
 	/** Returns true if handled object is inactive and ready to be taken from pool. */
 	FORCEINLINE bool IsFree() const { return !bIsActive && IsValid(); }
 
 	/** Returns true if the object is created. */
-	FORCEINLINE bool IsValid() const { return PoolObject != nullptr; }
+	FORCEINLINE bool IsValid() const { return PoolObject && Handle.IsValid(); }
 
 	/** conversion to "bool" returning true if pool object is valid. */
 	FORCEINLINE operator bool() const { return IsValid(); }
@@ -109,16 +165,18 @@ struct POOLMANAGER_API FPoolContainer
 	FORCEINLINE bool IsValid() const { return ObjectClass != nullptr; }
 };
 
+typedef TFunction<void(const FPoolObjectData&)> FOnSpawnCallback;
+
 /**
  * Contains the functions that are called when the object is spawned.
  */
 struct POOLMANAGER_API FSpawnCallbacks
 {
-	/** Returns spawned object if it finished spawning successfully. */
-	TFunction<void(UObject*)> OnPreConstructed = nullptr;
+	/** Returns complete object data before registration in the Pool. */
+	FOnSpawnCallback OnPreRegistered = nullptr;
 
-	/** Returns spawned object when it finished spawning successfully. */
-	TFunction<void(UObject*)> OnPostSpawned = nullptr;
+	/** Returns already spawned and registered object. */
+	FOnSpawnCallback OnPostSpawned = nullptr;
 };
 
 /**
@@ -137,6 +195,14 @@ struct POOLMANAGER_API FSpawnRequest
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient)
 	FTransform Transform = FTransform::Identity;
 
-	// Contains the functions that are called when the object is spawned
+	/** The handle associated with spawning pool object for management within the Pool Manager system.
+	 * Is generated automatically if not set. */
+	UPROPERTY(BlueprintReadOnly, Transient)
+	FPoolObjectHandle Handle = FPoolObjectHandle::EmptyHandle;
+
+	/** Contains the functions that are called when the object is spawned. */
 	FSpawnCallbacks Callbacks;
+
+	/** Returns true if this spawn request can be processed. */
+	FORCEINLINE bool IsValid() const { return Class && Handle.IsValid(); }
 };

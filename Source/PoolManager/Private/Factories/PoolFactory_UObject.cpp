@@ -9,13 +9,18 @@
 // Method to queue object spawn requests
 void UPoolFactory_UObject::RequestSpawn_Implementation(const FSpawnRequest& Request)
 {
+	if (!ensureMsgf(Request.IsValid(), TEXT("ASSERT: [%i] %s:\n'Request' is not valid and can't be processed!"), __LINE__, *FString(__FUNCTION__)))
+	{
+		return;
+	}
+
 	// Add request to queue
-	SpawnQueueInternal.Enqueue(Request);
+	SpawnQueueInternal.Emplace(Request);
 
 	// If this is the first object in the queue, schedule the OnNextTickProcessSpawn to be called on the next frame
 	// Creating UObjects on separate threads is not thread-safe and leads to problems with garbage collection,
 	// so we will create them on the game thread, but defer to next frame to avoid hitches
-	if (++SpawnQueueSize == 1)
+	if (SpawnQueueInternal.Num() == 1)
 	{
 		const UWorld* World = GetWorld();
 		checkf(World, TEXT("ERROR: [%i] %s:\n'World' is null!"), __LINE__, *FString(__FUNCTION__));
@@ -29,14 +34,19 @@ UObject* UPoolFactory_UObject::SpawnNow_Implementation(const FSpawnRequest& Requ
 {
 	UObject* CreatedObject = NewObject<UObject>(GetOuter(), Request.Class);
 
-	if (Request.Callbacks.OnPreConstructed != nullptr)
+	FPoolObjectData PoolObjectData;
+	PoolObjectData.bIsActive = true;
+	PoolObjectData.PoolObject = CreatedObject;
+	PoolObjectData.Handle = Request.Handle;
+
+	if (Request.Callbacks.OnPreRegistered != nullptr)
 	{
-		Request.Callbacks.OnPreConstructed(CreatedObject);
+		Request.Callbacks.OnPreRegistered(PoolObjectData);
 	}
 
 	if (Request.Callbacks.OnPostSpawned != nullptr)
 	{
-		Request.Callbacks.OnPostSpawned(CreatedObject);
+		Request.Callbacks.OnPostSpawned(PoolObjectData);
 	}
 
 	return CreatedObject;
@@ -45,8 +55,36 @@ UObject* UPoolFactory_UObject::SpawnNow_Implementation(const FSpawnRequest& Requ
 // Removes the first spawn request from the queue and returns it
 bool UPoolFactory_UObject::DequeueSpawnRequest(FSpawnRequest& OutRequest)
 {
-	--SpawnQueueSize;
-	return SpawnQueueInternal.Dequeue(OutRequest);
+	if (!SpawnQueueInternal.IsValidIndex(0))
+	{
+		return false;
+	}
+
+	// Copy and remove first request from the queue (without Swap to keep order)
+	OutRequest = SpawnQueueInternal[0];
+	SpawnQueueInternal.RemoveAt(0);
+
+	return OutRequest.IsValid();
+}
+
+// Alternative method to remove specific spawn request from the queue and returns it.
+bool UPoolFactory_UObject::DequeueSpawnRequestByHandle(const FPoolObjectHandle& Handle, FSpawnRequest& OutRequest)
+{
+	const int32 Idx = SpawnQueueInternal.IndexOfByPredicate([&Handle](const FSpawnRequest& Request)
+	{
+		return Request.Handle == Handle;
+	});
+
+	if (!SpawnQueueInternal.IsValidIndex(Idx))
+	{
+		return false;
+	}
+
+	// Copy and remove first request from the queue (without Swap to keep order)
+	OutRequest = SpawnQueueInternal[Idx];
+	SpawnQueueInternal.RemoveAt(Idx);
+
+	return OutRequest.IsValid();
 }
 
 // Is called on next frame to process a chunk of the spawn queue
@@ -58,7 +96,7 @@ void UPoolFactory_UObject::OnNextTickProcessSpawn_Implementation()
 		ObjectsPerFrame = 1;
 	}
 
-	for (int32 Index = 0; Index < FMath::Min(ObjectsPerFrame, SpawnQueueSize); ++Index)
+	for (int32 Index = 0; Index < FMath::Min(ObjectsPerFrame, SpawnQueueInternal.Num()); ++Index)
 	{
 		FSpawnRequest OutRequest;
 		if (DequeueSpawnRequest(OutRequest))

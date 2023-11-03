@@ -49,6 +49,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Pool Factory")
 	virtual bool DequeueSpawnRequest(FSpawnRequest& OutRequest);
 
+	/** Alternative method to remove specific spawn request from the queue and returns it. */
+	UFUNCTION(BlueprintCallable, Category = "Pool Factory")
+	virtual bool DequeueSpawnRequestByHandle(const FPoolObjectHandle& Handle, FSpawnRequest& OutRequest);
+
 	/** Returns true if the spawn queue is empty, so there are no spawn request at current moment. */
 	UFUNCTION(BlueprintPure, Category = "Pool Factory")
 	virtual FORCEINLINE bool IsSpawnQueueEmpty() const { return SpawnQueueInternal.IsEmpty(); }
@@ -91,10 +95,7 @@ public:
 	 * Data
 	 ********************************************************************************************* */
 protected:
-	/** Request to spawn. */
-	TQueue<FSpawnRequest> SpawnQueueInternal;
-
-	/** Number of spawn requests in the queue. */
-	UPROPERTY(Transient)
-	int32 SpawnQueueSize = 0;
+	/** All request to spawn. */
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, Transient, Category = "Pool Factory", meta = (BlueprintProtected, DisplayName = "Spawn Queue"))
+	TArray<FSpawnRequest> SpawnQueueInternal;
 };

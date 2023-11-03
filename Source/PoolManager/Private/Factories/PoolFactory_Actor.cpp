@@ -39,9 +39,14 @@ UObject* UPoolFactory_Actor::SpawnNow_Implementation(const FSpawnRequest& Reques
 	AActor* NewActor = World->SpawnActor(ClassToSpawn, &Request.Transform, SpawnParameters);
 	checkf(NewActor, TEXT("ERROR: [%i] %s:\n'NewActor' was not spawned!"), __LINE__, *FString(__FUNCTION__));
 
-	if (Request.Callbacks.OnPreConstructed != nullptr)
+	FPoolObjectData PoolObjectData;
+	PoolObjectData.bIsActive = true;
+	PoolObjectData.PoolObject = NewActor;
+	PoolObjectData.Handle = Request.Handle;
+
+	if (Request.Callbacks.OnPreRegistered != nullptr)
 	{
-		Request.Callbacks.OnPreConstructed(NewActor);
+		Request.Callbacks.OnPreRegistered(PoolObjectData);
 	}
 
 	if (AActor* SpawnedActor = Cast<AActor>(NewActor))
@@ -52,7 +57,7 @@ UObject* UPoolFactory_Actor::SpawnNow_Implementation(const FSpawnRequest& Reques
 
 	if (Request.Callbacks.OnPostSpawned != nullptr)
 	{
-		Request.Callbacks.OnPostSpawned(NewActor);
+		Request.Callbacks.OnPostSpawned(PoolObjectData);
 	}
 
 	return NewActor;
