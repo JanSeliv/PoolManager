@@ -106,8 +106,10 @@ const FPoolObjectData* UPoolManagerSubsystem::TakeFromPoolOrNull(const UClass* O
 	}
 
 	FPoolContainer* Pool = FindPool(ObjectClass);
-	if (!ensureMsgf(Pool, TEXT("ASSERT: [%i] %s:\n'Pool' is not registered for next class: %s"), __LINE__, *FString(__FUNCTION__), *ObjectClass->GetName()))
+	if (!Pool)
 	{
+		// Pool is not registered that is ok for this function, so it returns null
+		// Outer will create new object and register it in pool
 		return nullptr;
 	}
 
@@ -140,16 +142,15 @@ const FPoolObjectData* UPoolManagerSubsystem::TakeFromPoolOrNull(const UClass* O
 // Returns the specified object to the pool and deactivates it if the object was taken from the pool before
 bool UPoolManagerSubsystem::ReturnToPool_Implementation(UObject* Object)
 {
-	FPoolContainer* Pool = Object ? FindPool(Object->GetClass()) : nullptr;
-	if (!ensureMsgf(Pool, TEXT("ASSERT: [%i] %s:\n'Pool' is not not registered for '%s' object, can not return it to pool!"), __LINE__, *FString(__FUNCTION__), *GetNameSafe(Object)))
+	if (!ensureMsgf(Object, TEXT("ASSERT: [%i] %s:\n'Object' is null!"), __LINE__, *FString(__FUNCTION__)))
 	{
 		return false;
 	}
+	
+	FPoolContainer& Pool = FindPoolOrAdd(Object->GetClass());
+	Pool.GetFactoryChecked().OnReturnToPool(Object);
 
-	UPoolFactory_UObject& Factory = Pool->GetFactoryChecked();
-	Factory.OnReturnToPool(Object);
-
-	SetObjectStateInPool(EPoolObjectState::Inactive, *Object, *Pool);
+	SetObjectStateInPool(EPoolObjectState::Inactive, *Object, Pool);
 
 	return true;
 }
@@ -162,13 +163,8 @@ bool UPoolManagerSubsystem::ReturnToPool(const FPoolObjectHandle& Handle)
 		return false;
 	}
 
-	const FPoolContainer* Pool = FindPool(Handle.GetObjectClass());
-	if (!ensureMsgf(Pool, TEXT("ASSERT: [%i] %s:\n'Pool' is not registered for next class: %s"), __LINE__, *FString(__FUNCTION__), *Handle.GetObjectClass()->GetName()))
-	{
-		return false;
-	}
-
-	if (const FPoolObjectData* ObjectData = Pool->FindInPool(Handle))
+	const FPoolContainer& Pool = FindPoolOrAdd(Handle.GetObjectClass());
+	if (const FPoolObjectData* ObjectData = Pool.FindInPool(Handle))
 	{
 		const bool bSucceed = ReturnToPool(ObjectData->PoolObject);
 		return ensureMsgf(bSucceed, TEXT("ASSERT: [%i] %s:\nFailed to return object to the Pool by given object!"), __LINE__, *FString(__FUNCTION__));
@@ -177,7 +173,7 @@ bool UPoolManagerSubsystem::ReturnToPool(const FPoolObjectHandle& Handle)
 	// It's exclusive feature of Handles:
 	// cancel spawn request if object returns to pool faster than it is spawned
 	FSpawnRequest OutRequest;
-	const bool bSucceed = Pool->GetFactoryChecked().DequeueSpawnRequestByHandle(Handle, OutRequest);
+	const bool bSucceed = Pool.GetFactoryChecked().DequeueSpawnRequestByHandle(Handle, OutRequest);
 	return ensureMsgf(bSucceed, TEXT("ASSERT: [%i] %s:\nGiven Handle is not known by Pool Manager and is not even in spawning queue!"), __LINE__, *FString(__FUNCTION__));
 }
 
@@ -587,6 +583,8 @@ void UPoolManagerSubsystem::Deinitialize()
 // Returns the pointer to found pool by specified class
 FPoolContainer& UPoolManagerSubsystem::FindPoolOrAdd(const UClass* ObjectClass)
 {
+	checkf(ObjectClass, TEXT("ERROR: [%i] %s:\n'ObjectClass' is null!"), __LINE__, *FString(__FUNCTION__));
+
 	if (FPoolContainer* Pool = FindPool(ObjectClass))
 	{
 		return *Pool;
