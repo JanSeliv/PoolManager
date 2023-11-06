@@ -237,6 +237,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Pool Manager")
 	UObject* FindPoolObjectByHandle(const FPoolObjectHandle& Handle) const;
 
+	/** Returns handle associated with given object.
+	 * Can be invalid (FPoolObjectHandle::EmptyHandle) if not found. */
+	UFUNCTION(BlueprintPure, Category = "Pool Manager", meta = (DefaultToSelf = "Object"))
+	const FPoolObjectHandle& FindPoolHandleByObject(const UObject* Object) const;
+
 	/*********************************************************************************************
 	 * Protected properties
 	 ********************************************************************************************* */
