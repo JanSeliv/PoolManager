@@ -106,9 +106,8 @@ const FPoolObjectData* UPoolManagerSubsystem::TakeFromPoolOrNull(const UClass* O
 	}
 
 	FPoolContainer* Pool = FindPool(ObjectClass);
-	if (!Pool)
+	if (!ensureMsgf(Pool, TEXT("ASSERT: [%i] %s:\n'Pool' is not registered for next class: %s"), __LINE__, *FString(__FUNCTION__), *ObjectClass->GetName()))
 	{
-		// Pool is not registered
 		return nullptr;
 	}
 
@@ -152,37 +151,34 @@ bool UPoolManagerSubsystem::ReturnToPool_Implementation(UObject* Object)
 
 	SetObjectStateInPool(EPoolObjectState::Inactive, *Object, *Pool);
 
-	if (!Factory.IsSpawnQueueEmpty())
-	{
-		// Spawn queue is not empty
-		// Take this object back from the pool instead of creating new one 
-		FSpawnRequest OutRequest;
-		Factory.DequeueSpawnRequest(OutRequest);
-		TakeFromPool(OutRequest.Class, OutRequest.Transform, OutRequest.Callbacks.OnPostSpawned);
-	}
-
 	return true;
 }
 
 // Alternative to ReturnToPool() to return object to the pool by its handle
 bool UPoolManagerSubsystem::ReturnToPool(const FPoolObjectHandle& Handle)
 {
-	const FPoolContainer* Pool = FindPool(Handle.GetObjectClass());
-	if (!Pool)
+	if (!ensureMsgf(Handle.IsValid(), TEXT("ASSERT: [%i] %s:\n'Handle' is not valid!"), __LINE__, *FString(__FUNCTION__)))
 	{
-		// Pool is not registered
+		return false;
+	}
+
+	const FPoolContainer* Pool = FindPool(Handle.GetObjectClass());
+	if (!ensureMsgf(Pool, TEXT("ASSERT: [%i] %s:\n'Pool' is not registered for next class: %s"), __LINE__, *FString(__FUNCTION__), *Handle.GetObjectClass()->GetName()))
+	{
 		return false;
 	}
 
 	if (const FPoolObjectData* ObjectData = Pool->FindInPool(Handle))
 	{
-		return ReturnToPool(ObjectData->PoolObject);
+		const bool bSucceed = ReturnToPool(ObjectData->PoolObject);
+		return ensureMsgf(bSucceed, TEXT("ASSERT: [%i] %s:\nFailed to return object to the Pool by given object!"), __LINE__, *FString(__FUNCTION__));
 	}
 
 	// It's exclusive feature of Handles:
 	// cancel spawn request if object returns to pool faster than it is spawned
 	FSpawnRequest OutRequest;
-	return Pool->GetFactoryChecked().DequeueSpawnRequestByHandle(Handle, OutRequest);
+	const bool bSucceed = Pool->GetFactoryChecked().DequeueSpawnRequestByHandle(Handle, OutRequest);
+	return ensureMsgf(bSucceed, TEXT("ASSERT: [%i] %s:\nGiven Handle is not known by Pool Manager and is not even in spawning queue!"), __LINE__, *FString(__FUNCTION__));
 }
 
 /*********************************************************************************************
@@ -529,8 +525,16 @@ int32 UPoolManagerSubsystem::GetRegisteredObjectsNum_Implementation(const UClass
 UObject* UPoolManagerSubsystem::FindPoolObjectByHandle(const FPoolObjectHandle& Handle) const
 {
 	const FPoolContainer* Pool = FindPool(Handle.GetObjectClass());
-	const FPoolObjectData* PoolObject = Pool ? Pool->FindInPool(Handle) : nullptr;
-	return PoolObject ? PoolObject->PoolObject : nullptr;
+	const FPoolObjectData* ObjectData = Pool ? Pool->FindInPool(Handle) : nullptr;
+	return ObjectData ? ObjectData->PoolObject : nullptr;
+}
+
+// Returns handle associated with given object
+const FPoolObjectHandle& UPoolManagerSubsystem::FindPoolHandleByObject(const UObject* Object) const
+{
+	const FPoolContainer* Pool = Object ? FindPool(Object->GetClass()) : nullptr;
+	const FPoolObjectData* ObjectData = Pool ? Pool->FindInPool(*Object) : nullptr;
+	return ObjectData ? ObjectData->Handle : FPoolObjectHandle::EmptyHandle;
 }
 
 /*********************************************************************************************

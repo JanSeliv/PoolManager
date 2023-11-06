@@ -75,7 +75,7 @@ bool UPoolFactory_UObject::DequeueSpawnRequestByHandle(const FPoolObjectHandle& 
 		return Request.Handle == Handle;
 	});
 
-	if (!SpawnQueueInternal.IsValidIndex(Idx))
+	if (!ensureMsgf(SpawnQueueInternal.IsValidIndex(Idx), TEXT("ASSERT: [%i] %s:\nHandle is not found within Spawn Requests, can't dequeue it: %s"), __LINE__, *FString(__FUNCTION__), *Handle.GetHash().ToString()))
 	{
 		return false;
 	}
