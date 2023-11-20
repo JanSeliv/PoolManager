@@ -3,6 +3,7 @@
 #include "PoolManagerSubsystem.h"
 //---
 #include "Factories/PoolFactory_UObject.h"
+#include "Data/PoolManagerSettings.h"
 //---
 #include "Engine/World.h"
 //---
@@ -146,7 +147,7 @@ bool UPoolManagerSubsystem::ReturnToPool_Implementation(UObject* Object)
 	{
 		return false;
 	}
-	
+
 	FPoolContainer& Pool = FindPoolOrAdd(Object->GetClass());
 	Pool.GetFactoryChecked().OnReturnToPool(Object);
 
@@ -251,7 +252,8 @@ FPoolObjectHandle UPoolManagerSubsystem::CreateNewObjectInPool_Implementation(co
 void UPoolManagerSubsystem::AddFactory(TSubclassOf<UPoolFactory_UObject> FactoryClass)
 {
 	const UClass* ObjectClass = GetObjectClassByFactory(FactoryClass);
-	if (!ensureMsgf(ObjectClass, TEXT("ASSERT: [%i] %s:\n'ObjectClass' is not set for next factory: %s"), __LINE__, *FString(__FUNCTION__), *FactoryClass->GetName()))
+	if (!ensureMsgf(ObjectClass, TEXT("ASSERT: [%i] %s:\n'ObjectClass' is not set for next factory: %s"), __LINE__, *FString(__FUNCTION__), *FactoryClass->GetName())
+		|| AllFactoriesInternal.Contains(ObjectClass))
 	{
 		return;
 	}
@@ -322,21 +324,11 @@ const UClass* UPoolManagerSubsystem::GetObjectClassByFactory(const TSubclassOf<U
 // Creates all possible Pool Factories to be used by the Pool Manager when dealing with objects
 void UPoolManagerSubsystem::InitializeAllFactories()
 {
-	if (!AllFactoriesInternal.IsEmpty())
+	TArray<UClass*> AllPoolFactories;
+	UPoolManagerSettings::Get().GetPoolFactories(/*out*/AllPoolFactories);
+	for (UClass* FactoryClass : AllPoolFactories)
 	{
-		// Already initialized
-		return;
-	}
-
-	for (TObjectIterator<UClass> It; It; ++It)
-	{
-		if (!It->IsChildOf(UPoolFactory_UObject::StaticClass())
-			|| It->HasAnyClassFlags(CLASS_Abstract))
-		{
-			continue;
-		}
-
-		AddFactory(*It);
+		AddFactory(FactoryClass);
 	}
 }
 

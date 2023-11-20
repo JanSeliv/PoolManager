@@ -15,9 +15,11 @@
  * Destruction: UObjects call ConditionalBeginDestroy; Actors call DestroyActor, Components call DestroyComponent, Widgets call RemoveFromParent etc.
  * Pool: Actors and Scene Components are changing visibility, collision, ticking, etc. UObjects and Widgets are not.
  *
- * To create new factory just inherit from this/child class and override GetObjectClass() method.
- * Pool Manager will automatically create and use your factory for objects of your class and its children.
-*/
+ * To create new factory:
+ * 1. Inherit from this/child class
+ * 2. Add it to the 'Project Settings' -> "Plugins" -> "Pool Manager" -> "Pool Factories"
+ * 3. Override GetObjectClass() method.
+ */
 UCLASS(Blueprintable, BlueprintType)
 class POOLMANAGER_API UPoolFactory_UObject : public UObject
 {
