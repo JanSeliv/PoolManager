@@ -8,10 +8,12 @@ public class PoolManager : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 		CppStandard = CppStandardVersion.Latest;
+		bEnableNonInlinedGenCppWarnings = true;
 
 		PublicDependencyModuleNames.AddRange(new[]
 			{
 				"Core"
+				, "DeveloperSettings" // Created UPoolManagerSettings
 			}
 		);
 

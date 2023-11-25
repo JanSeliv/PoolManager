@@ -23,8 +23,14 @@
  *     Objects are taken from and returned to the Pool Manager when not in use, which makes them 'inactive'.
  *     In case of actors, they are moved outside the game level, hidden, and they don't interact with anything or use up resources.
  *
- * Tips:
- *     - You can use the Pool Manager in the Editor before you start the game.
+ * Code architecture:
+ *		 - Pool Manager is a subsystem that is created automatically including all children.
+ *		 - It stores and manages only the data (Pools and objects).
+ *		 - It does not manage any specific logic for handling objects, only base pooling logic related to data.
+ *		 - Pool Factories are used to handle specific logic about objects behavior (creation, destruction, visibility etc).
+ *
+ * Optional features:
+ *     - Pool Manager is available even before starting the game that allows to preconstruct your actors on the level.
  *     - You can implement your own Pool Manager by inheriting from this class and overriding the functions.
  */
 UCLASS(BlueprintType, Blueprintable)
@@ -37,46 +43,78 @@ class POOLMANAGER_API UPoolManagerSubsystem : public UWorldSubsystem
 	 ********************************************************************************************* */
 public:
 	/** Returns the Pool Manager, is checked and wil crash if can't be obtained.
-	* UPoolManagerSubsystem::Get(). with no parameters can be used in most cases if there is no specific set up.
-	* @tparam T is optional, put your child class if you implemented your own Pull Manager in code.
-	* @param OptionalClass is optional, specify the class if you implemented your own Pool Manager in blueprints.
-	* @param OptionalWorldContext is optional, can be null in most cases, could be useful to avoid obtaining the automatically. */
+	 * Is useful in code, in most cases can be used with no parameters to obtain default Pool Manager.
+	 * E.g:
+	 * - UPoolManagerSubsystem::Get().TakeFromPool...
+	 * - UPoolManagerSubsystem::Get<UCustomCodePoolManager>().TakeFromPool...
+	 * - UPoolManagerSubsystem::Get(CustomBlueprintPoolManager).TakeFromPool...
+	 * @tparam T is optional, put your child class if you implemented your own Pull Manager in code.
+	 * @param OptionalClass is optional, specify the class if you implemented your own Pool Manager in blueprints.
+	 * @param OptionalWorldContext is optional, can be null in most cases, could be useful to avoid obtaining the automatically. */
 	template <typename T = ThisClass>
 	static FORCEINLINE T& Get(TSubclassOf<UPoolManagerSubsystem> OptionalClass = T::StaticClass(), const UObject* OptionalWorldContext = nullptr) { return *CastChecked<T>(GetPoolManagerByClass(OptionalClass, OptionalWorldContext)); }
 
 	/** Returns the pointer to the Pool Manager.
+	 * Is useful for blueprints to obtain **default** Pool Manager.
 	 * @param OptionalWorldContext is optional parameter and hidden in blueprints, can be null in most cases, could be useful to avoid obtaining the world automatically. */
 	UFUNCTION(BlueprintPure, meta = (WorldContext = "OptionalWorldContext"))
 	static UPoolManagerSubsystem* GetPoolManager(const UObject* OptionalWorldContext = nullptr) { return GetPoolManagerByClass(StaticClass(), OptionalWorldContext); }
 
 	/** Returns the pointer to custom Pool Manager by given class.
-	* @param OptionalClass is optional, specify the class if you implemented your own Pool Manager.
-	* @param OptionalWorldContext is optional parameter and hidden in blueprints, can be null in most cases, could be useful to avoid obtaining the world automatically. */
+	 * Is useful for blueprints to obtain your **custom** Pool Manager. 
+	 * @param OptionalClass is optional, specify the class if you implemented your own Pool Manager.
+	 * @param OptionalWorldContext is optional parameter and hidden in blueprints, can be null in most cases, could be useful to avoid obtaining the world automatically. */
 	UFUNCTION(BlueprintPure, meta = (WorldContext = "OptionalWorldContext", DeterminesOutputType = "OptionalClass", BlueprintAutocast))
 	static UPoolManagerSubsystem* GetPoolManagerByClass(TSubclassOf<UPoolManagerSubsystem> OptionalClass = nullptr, const UObject* OptionalWorldContext = nullptr);
 
 	/*********************************************************************************************
-	 * Main
+	 * Main API
 	 *
 	 * Use TakeFromPool() to get it instead of creating by your own.
 	 * Use ReturnToPool() to return it back to the pool instead of destroying by your own.
 	 ********************************************************************************************* */
 public:
-	/** Get the object from a pool by specified class.
+	DECLARE_DYNAMIC_DELEGATE_OneParam(FOnTakenFromPool, UObject*, Object);
+
+	/** Get the object from a pool by specified class, where output is async that returns the object when is ready.
 	 *  It creates new object if there no free objects contained in pool or does not exist any.
-	 *  @return Activated object requested from the pool. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Manager", meta = (AutoCreateRefTerm = "Transform"))
-	UObject* TakeFromPool(const UClass* ClassInPool, const FTransform& Transform);
-	virtual UObject* TakeFromPool_Implementation(const UClass* ClassInPool, const FTransform& Transform);
+	 *  @param ObjectClass The class of object to get from the pool.
+	 *  @param Transform The transform to set for the object (if actor).
+	 *  @param Completed The callback function that is called when the object is ready.
+	 *  @return if any is found and free, activates and returns object from the pool, otherwise async spawns new one next frames and register in the pool.
+	 *  @warning 'SpawnObjectsPerFrame' affects how fast new objects are created, it can be changed in'Project Settings' -> "Plugins" -> "Pool Manager".
+	 *  @warning Is custom blueprint node implemented in K2Node_TakeFromPool.h, so can't be overridden and accessible on graph (not inside functions).
+	 *  @warning Node's output will node work in for/while loop in blueprints because of Completed delegate: to achieve loop connect output exec to input exec. */
+	UFUNCTION(BlueprintCallable, Category = "Pool Manager", meta = (BlueprintInternalUseOnly = "true"))
+	void BPTakeFromPool(const UClass* ObjectClass, const FTransform& Transform, const FOnTakenFromPool& Completed);
 
-	/** The templated alternative to get the object from a pool by specified class. */
+	/** Is code-overridable version of TakeFromPool() that calls callback functions when the object is ready.
+	 * Can be overridden by child code classes.
+	 * Is useful in code with blueprint classes, e.g: TakeFromPool(SomeBlueprintClass);
+	 * @return Handle to the object with the Hash associated with the object, is indirect since the object could be not ready yet. */
+	virtual FPoolObjectHandle TakeFromPool(const UClass* ObjectClass, const FTransform& Transform = FTransform::Identity, const FOnSpawnCallback& Completed = nullptr);
+
+	/** A templated alternative to get the object from a pool by class in template.
+	 * Is useful in code with code classes, e.g: TakeFromPool<AProjectile>(); */
 	template <typename T>
-	FORCEINLINE T* TakeFromPool(const UClass* ClassInPool = T::StaticClass(), const FTransform& Transform = FTransform::Identity) { return Cast<T>(TakeFromPool(ClassInPool, Transform)); }
+	FPoolObjectHandle TakeFromPool(const FTransform& Transform = FTransform::Identity, const FOnSpawnCallback& Completed = nullptr) { return TakeFromPool(T::StaticClass(), Transform, Completed); }
 
-	/** Returns the specified object to the pool and deactivates it if the object was taken from the pool before. */
+	/** Is alternative version of TakeFromPool() to find object in pool or return null. */
+	virtual const FPoolObjectData* TakeFromPoolOrNull(const UClass* ObjectClass, const FTransform& Transform);
+
+public:
+	/** Returns the specified object to the pool and deactivates it if the object was taken from the pool before.
+	 * @param Object The object to return to the pool.
+	 * @return true if pool was found and returned successfully, otherwise false. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Manager", meta = (DefaultToSelf = "Object"))
-	void ReturnToPool(UObject* Object);
-	virtual void ReturnToPool_Implementation(UObject* Object);
+	bool ReturnToPool(UObject* Object);
+	virtual bool ReturnToPool_Implementation(UObject* Object);
+
+	/** Alternative to ReturnToPool() to return object to the pool by its handle.
+	 * Is useful in case when you don't have a reference to the object but have its handle.
+	 * @param Handle The handle associated with the object to return to the pool.
+	 * @return true if handle was found and return successfully, otherwise false. */
+	virtual bool ReturnToPool(const FPoolObjectHandle& Handle);
 
 	/*********************************************************************************************
 	 * Advanced
@@ -85,21 +123,62 @@ public:
 	 ********************************************************************************************* */
 public:
 	/** Adds specified object as is to the pool by its class to be handled by the Pool Manager.
-	 * It's designed to be used only on already existed objects unknown for the Pool Manager. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Manager", meta = (DefaultToSelf = "Object"))
-	bool RegisterObjectInPool(UObject* Object = nullptr, EPoolObjectState PoolObjectState = EPoolObjectState::Inactive);
-	virtual bool RegisterObjectInPool_Implementation(UObject* Object = nullptr, EPoolObjectState PoolObjectState = EPoolObjectState::Inactive);
+	 * Should not be used directly in most cases since is called automatically.
+	 * Could be useful to add already existed objects (spawned by outer code) to the pool.
+	 * It's designed to be used only on already existed objects unknown for the Pool Manager.
+	 * @param InData The data with the object to register in the pool.
+	 * @return true if registered successfully, otherwise false. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Manager", meta = (AutoCreateRefTerm = "InData"))
+	bool RegisterObjectInPool(const FPoolObjectData& InData);
+	virtual bool RegisterObjectInPool_Implementation(const FPoolObjectData& InData);
 
 	/** Always creates new object and adds it to the pool by its class.
-	 * Use carefully if only there is no free objects contained in pool. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Manager", meta = (DefaultToSelf = "Object"))
-	UObject* CreateNewObjectInPool(const UClass* ObjectClass, const FTransform& Transform, EPoolObjectState PoolObjectState = EPoolObjectState::Active);
-	virtual UObject* CreateNewObjectInPool_Implementation(const UClass* ObjectClass, const FTransform& Transform, EPoolObjectState PoolObjectState = EPoolObjectState::Active);
+	 * Use carefully if only there is no free objects contained in pool.
+	 * @param InRequest The request to spawn new object.
+	 * @return Handle to the object with the hash associated with object to be spawned next frames. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Manager", meta = (AutoCreateRefTerm = "InRequest"))
+	FPoolObjectHandle CreateNewObjectInPool(const FSpawnRequest& InRequest);
+	virtual FPoolObjectHandle CreateNewObjectInPool_Implementation(const FSpawnRequest& InRequest);
 
+	/*********************************************************************************************
+	 * Advanced - Factories
+	 ********************************************************************************************* */
+public:
+	/** Registers new factory to be used by the Pool Manager when dealing with objects of specific class and its children.
+	 * In most cases, you don't need to use this function since factories are registered automatically.
+	 * Could be useful to register factory from different plugin or module. */
+	UFUNCTION(BlueprintCallable, Category = "Pool Manager")
+	virtual void AddFactory(TSubclassOf<UPoolFactory_UObject> FactoryClass);
+
+	/** Removes factory from the Pool Manager by its class.
+	 * In most cases, you don't need to use this function since factories are removed with destroying the Pool Manager.
+	 * Could be useful to remove factory in runtime when some class is not needed anymore. */
+	UFUNCTION(BlueprintCallable, Category = "Pool Manager")
+	virtual void RemoveFactory(TSubclassOf<UPoolFactory_UObject> FactoryClass);
+
+	/** Traverses the class hierarchy to find the closest registered factory for a given object type or its ancestors. */
+	UFUNCTION(BlueprintPure, Category = "Pool Manager")
+	UPoolFactory_UObject* FindPoolFactoryChecked(const UClass* ObjectClass) const;
+
+	/** Returns default class of object that is handled by given factory. */
+	UFUNCTION(BlueprintPure, Category = "Pool Manager")
+	static const UClass* GetObjectClassByFactory(const TSubclassOf<UPoolFactory_UObject>& FactoryClass);
+
+protected:
+	/** Creates all possible Pool Factories to be used by the Pool Manager when dealing with objects. */
+	virtual void InitializeAllFactories();
+
+	/** Destroys all Pool Factories that are used by the Pool Manager when dealing with objects. */
+	virtual void ClearAllFactories();
+
+	/*********************************************************************************************
+	 * Empty Pool
+	 ********************************************************************************************* */
+public:
 	/** Destroy all object of a pool by a given class. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
-	void EmptyPool(const UClass* ClassInPool);
-	virtual void EmptyPool_Implementation(const UClass* ClassInPool);
+	void EmptyPool(const UClass* ObjectClass);
+	virtual void EmptyPool_Implementation(const UClass* ObjectClass);
 
 	/** Destroy all objects in all pools that are handled by the Pool Manager. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
@@ -124,9 +203,9 @@ public:
 	virtual bool ContainsObjectInPool_Implementation(const UObject* Object) const;
 
 	/** Returns true is specified class is handled by Pool Manager. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Pool Manager", meta = (DefaultToSelf = "Object"))
-	bool ContainsClassInPool(const UClass* ClassInPool) const;
-	virtual bool ContainsClassInPool_Implementation(const UClass* ClassInPool) const;
+	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Pool Manager")
+	bool ContainsClassInPool(const UClass* ObjectClass) const;
+	virtual bool ContainsClassInPool_Implementation(const UClass* ObjectClass) const;
 
 	/** Returns true if specified object is handled by the Pool Manager and was taken from its pool. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Pool Manager", meta = (DefaultToSelf = "Object"))
@@ -138,17 +217,30 @@ public:
 	bool IsFreeObjectInPool(const UObject* Object) const;
 	virtual bool IsFreeObjectInPool_Implementation(const UObject* Object) const;
 
-	/** Returns first object contained in the Pool by its class that is inactive and ready to be taken from pool.
-	 * Return null if there no free objects contained in pool or does not exist any.
-	 * Consider to use TakeFromPool() instead to create new object if there no free objects. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Pool Manager", meta = (DefaultToSelf = "Object"))
-	UObject* GetFreeObjectInPool(const UClass* ObjectClass) const;
-	virtual UObject* GetFreeObjectInPool_Implementation(const UClass* ObjectClass) const;
+	/** Returns number of free objects in pool by specified class. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Pool Manager")
+	int32 GetFreeObjectsNum(const UClass* ObjectClass) const;
+	virtual int32 GetFreeObjectsNum_Implementation(const UClass* ObjectClass) const;
 
 	/** Returns true if object is known by Pool Manager. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Pool Manager", meta = (DefaultToSelf = "Object"))
 	bool IsRegistered(const UObject* Object) const;
 	virtual bool IsRegistered_Implementation(const UObject* Object) const;
+
+	/** Returns number of registered objects in pool by specified class. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Pool Manager")
+	int32 GetRegisteredObjectsNum(const UClass* ObjectClass) const;
+	virtual int32 GetRegisteredObjectsNum_Implementation(const UClass* ObjectClass) const;
+
+	/** Returns the object associated with given handle.
+	 * Can be null if not found or object is in spawning queue. */
+	UFUNCTION(BlueprintPure, Category = "Pool Manager")
+	UObject* FindPoolObjectByHandle(const FPoolObjectHandle& Handle) const;
+
+	/** Returns handle associated with given object.
+	 * Can be invalid (FPoolObjectHandle::EmptyHandle) if not found. */
+	UFUNCTION(BlueprintPure, Category = "Pool Manager", meta = (DefaultToSelf = "Object"))
+	const FPoolObjectHandle& FindPoolHandleByObject(const UObject* Object) const;
 
 	/*********************************************************************************************
 	 * Protected properties
@@ -158,6 +250,11 @@ protected:
 	UPROPERTY(BlueprintReadWrite, Transient, Category = "Pool Manager", meta = (BlueprintProtected, DisplayName = "Pools"))
 	TArray<FPoolContainer> PoolsInternal;
 
+	/** Map to store registered factories against the class types they handle.
+	 * @see UPoolFactory_UObject's description. */
+	UPROPERTY(BlueprintReadWrite, Transient, Category = "Pool Manager", meta = (BlueprintProtected, DisplayName = "All Factories"))
+	TMap<TObjectPtr<const UClass>, TObjectPtr<UPoolFactory_UObject>> AllFactoriesInternal;
+
 	/*********************************************************************************************
 	 * Protected methods
 	 ********************************************************************************************* */
@@ -165,11 +262,19 @@ protected:
 	/** Is called on initialization of the Pool Manager instance. */
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
-	/** Returns the pointer to found pool by specified class. */
-	virtual FPoolContainer* FindPool(const UClass* ClassInPool);
-	const FORCEINLINE FPoolContainer* FindPool(const UClass* ClassInPool) const { return const_cast<UPoolManagerSubsystem*>(this)->FindPool(ClassInPool); }
+	/** Is called on deinitialization of the Pool Manager instance. */
+	virtual void Deinitialize() override;
 
-	/** Activates or deactivates the object if such object is handled by the Pool Manager. */
-	UFUNCTION(BlueprintCallable, Category = "Pool Manager", meta = (BlueprintProtected, DefaultToSelf = "Object"))
-	virtual void SetActive(bool bShouldActivate, UObject* Object);
+	/** Returns the pointer to found pool by specified class. */
+	virtual FPoolContainer& FindPoolOrAdd(const UClass* ObjectClass);
+	virtual FPoolContainer* FindPool(const UClass* ObjectClass);
+	const FORCEINLINE FPoolContainer* FindPool(const UClass* ObjectClass) const { return const_cast<UPoolManagerSubsystem*>(this)->FindPool(ObjectClass); }
+
+	/** Activates or deactivates the object if such object is handled by the Pool Manager.
+	 * Is called when the object is taken from, registered or returned to the pool.
+	 * @param NewState If true, the object will be activated, otherwise deactivated.
+	 * @param InObject The object to activate or deactivate.
+	 * @param InPool The pool that contains the object.
+	 * @warning Do not call it directly, use TakeFromPool() or ReturnToPool() instead. */
+	virtual void SetObjectStateInPool(EPoolObjectState NewState, UObject& InObject, UPARAM(ref) FPoolContainer& InPool);
 };
