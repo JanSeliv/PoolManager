@@ -68,10 +68,8 @@ public:
 	static UPoolManagerSubsystem* GetPoolManagerByClass(TSubclassOf<UPoolManagerSubsystem> OptionalClass = nullptr, const UObject* OptionalWorldContext = nullptr);
 
 	/*********************************************************************************************
-	 * Main API
-	 *
-	 * Use TakeFromPool() to get it instead of creating by your own.
-	 * Use ReturnToPool() to return it back to the pool instead of destroying by your own.
+	 * Take From Pool
+	 * Use it to get an object instead of creating it manually by your own.
 	 ********************************************************************************************* */
 public:
 	DECLARE_DYNAMIC_DELEGATE_OneParam(FOnTakenFromPool, UObject*, Object);
@@ -88,7 +86,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Pool Manager", meta = (BlueprintInternalUseOnly = "true"))
 	void BPTakeFromPool(const UClass* ObjectClass, const FTransform& Transform, const FOnTakenFromPool& Completed);
 
-	/** Is code-overridable version of TakeFromPool() that calls callback functions when the object is ready.
+	/** Is code-overridable alternative version of TakeFromPool() that calls callback functions when the object is ready.
 	 * Can be overridden by child code classes.
 	 * Is useful in code with blueprint classes, e.g: TakeFromPool(SomeBlueprintClass);
 	 * @return Handle to the object with the Hash associated with the object, is indirect since the object could be not ready yet. */
@@ -102,6 +100,15 @@ public:
 	/** Is alternative version of TakeFromPool() to find object in pool or return null. */
 	virtual const FPoolObjectData* TakeFromPoolOrNull(const UClass* ObjectClass, const FTransform& Transform);
 
+	/** Is alternative version of TakeFromPool() that process multiple requests at once, then fires event when all requested objects are ready.
+	 * @param InOutRequests Takes the classes and Transforms, returns the handles associated with objects to be spawned next frames.
+	 * @param Completed The callback function that is called once when all objects are ready. */
+	virtual void TakeFromPool(TArray<FSpawnRequest>& InOutRequests, const FOnSpawnAllCallback& Completed = nullptr);
+
+	/*********************************************************************************************
+	 * Return To Pool
+	 * Returns an object back to the pool instead of destroying by your own.
+	 ********************************************************************************************* */
 public:
 	/** Returns the specified object to the pool and deactivates it if the object was taken from the pool before.
 	 * @param Object The object to return to the pool.
@@ -232,15 +239,23 @@ public:
 	int32 GetRegisteredObjectsNum(const UClass* ObjectClass) const;
 	virtual int32 GetRegisteredObjectsNum_Implementation(const UClass* ObjectClass) const;
 
+	/** Returns true if object is valid and registered in pool. */
+	UFUNCTION(BlueprintPure, Category = "Pool Manager", meta = (AutoCreateRefTerm = "InPoolObject"))
+	static bool IsPoolObjectValid(const FPoolObjectData& InPoolObject) { return InPoolObject.IsValid(); }
+
 	/** Returns the object associated with given handle.
-	 * Can be null if not found or object is in spawning queue. */
+	 * Can return invalid PoolObject  if not found or object is in spawning queue. */
 	UFUNCTION(BlueprintPure, Category = "Pool Manager")
-	UObject* FindPoolObjectByHandle(const FPoolObjectHandle& Handle) const;
+	const FPoolObjectData& FindPoolObjectByHandle(const FPoolObjectHandle& Handle) const;
 
 	/** Returns handle associated with given object.
 	 * Can be invalid (FPoolObjectHandle::EmptyHandle) if not found. */
 	UFUNCTION(BlueprintPure, Category = "Pool Manager", meta = (DefaultToSelf = "Object"))
 	const FPoolObjectHandle& FindPoolHandleByObject(const UObject* Object) const;
+
+	/** Returns from all given handles only valid ones. */
+	UFUNCTION(BlueprintPure, Category = "Pool Manager")
+	void FindPoolObjectsByHandles(TArray<FPoolObjectData>& OutObjects, const TArray<FPoolObjectHandle>& InHandles) const;
 
 	/*********************************************************************************************
 	 * Protected properties

@@ -53,7 +53,7 @@ UPoolManagerSubsystem* UPoolManagerSubsystem::GetPoolManagerByClass(TSubclassOf<
 }
 
 /*********************************************************************************************
- * Main API
+ * Take From Pool
  ********************************************************************************************* */
 
 // Async version of TakeFromPool() that returns the object by specified class
@@ -140,6 +140,79 @@ const FPoolObjectData* UPoolManagerSubsystem::TakeFromPoolOrNull(const UClass* O
 	return FoundData;
 }
 
+// Is alternative version of TakeFromPool() that process multiple requests at once, then fires event when all requested objects are ready
+void UPoolManagerSubsystem::TakeFromPool(TArray<FSpawnRequest>& InOutRequests, const FOnSpawnAllCallback& Completed)
+{
+	if (!ensureMsgf(!InOutRequests.IsEmpty(), TEXT("ASSERT: [%i] %s:\n'InOutRequests' is empty!"), __LINE__, *FString(__FUNCTION__)))
+	{
+		return;
+	}
+
+	TArray<FPoolObjectHandle> AllHandles;
+	TArray<FSpawnRequest> RequestsToCreate;
+
+	// --- Take if free objects in pool first
+	for (FSpawnRequest& It : InOutRequests)
+	{
+		if (const FPoolObjectData* ObjectData = TakeFromPoolOrNull(It.Class, It.Transform))
+		{
+			It.Handle = ObjectData->Handle;
+		}
+		else
+		{
+			It.Handle = FPoolObjectHandle::NewHandle(It.Class);
+			RequestsToCreate.Emplace(It);
+		}
+
+		AllHandles.Emplace(It.Handle);
+	}
+
+	if (RequestsToCreate.IsEmpty())
+	{
+		// All objects are taken from pool
+		if (Completed)
+		{
+			TArray<FPoolObjectData> OutObjects;
+			FindPoolObjectsByHandles(OutObjects, AllHandles);
+			Completed(OutObjects);
+		}
+		return;
+	}
+
+	// --- Process OnEachSpawned only if Completed is set
+	FOnSpawnCallback OnEachSpawned = nullptr;
+	if (Completed)
+	{
+		const TWeakObjectPtr<const ThisClass> WeakThis(this);
+		OnEachSpawned = [WeakThis, AllHandles, Completed](const FPoolObjectData& ObjectData)
+		{
+			const UPoolManagerSubsystem* PoolManager = WeakThis.Get();
+			if (!PoolManager)
+			{
+				return;
+			}
+
+			TArray<FPoolObjectData> OutObjects;
+			PoolManager->FindPoolObjectsByHandles(OutObjects, AllHandles);
+			if (OutObjects.Num() == AllHandles.Num())
+			{
+				Completed(OutObjects);
+			}
+		};
+	}
+
+	// --- Create the rest of objects
+	for (FSpawnRequest& It : RequestsToCreate)
+	{
+		It.Callbacks.OnPostSpawned = OnEachSpawned;
+		CreateNewObjectInPool(It);
+	}
+}
+
+/*********************************************************************************************
+ * Return To Pool
+ ********************************************************************************************* */
+
 // Returns the specified object to the pool and deactivates it if the object was taken from the pool before
 bool UPoolManagerSubsystem::ReturnToPool_Implementation(UObject* Object)
 {
@@ -203,7 +276,7 @@ bool UPoolManagerSubsystem::RegisterObjectInPool_Implementation(const FPoolObjec
 	if (!Data.Handle.IsValid())
 	{
 		// Hash can be unset that is fine, generate new one
-		Data.Handle = FPoolObjectHandle::NewHandle(*ObjectClass);
+		Data.Handle = FPoolObjectHandle::NewHandle(ObjectClass);
 	}
 
 	Pool.PoolObjects.Emplace(Data);
@@ -225,7 +298,7 @@ FPoolObjectHandle UPoolManagerSubsystem::CreateNewObjectInPool_Implementation(co
 	if (!Request.Handle.IsValid())
 	{
 		// Hash can be unset that is fine, generate new one
-		Request.Handle = FPoolObjectHandle::NewHandle(*Request.Class);
+		Request.Handle = FPoolObjectHandle::NewHandle(Request.Class);
 	}
 
 	// Always register new object in pool once it is spawned
@@ -510,11 +583,11 @@ int32 UPoolManagerSubsystem::GetRegisteredObjectsNum_Implementation(const UClass
 }
 
 // Returns the object associated with given handle
-UObject* UPoolManagerSubsystem::FindPoolObjectByHandle(const FPoolObjectHandle& Handle) const
+const FPoolObjectData& UPoolManagerSubsystem::FindPoolObjectByHandle(const FPoolObjectHandle& Handle) const
 {
 	const FPoolContainer* Pool = FindPool(Handle.GetObjectClass());
 	const FPoolObjectData* ObjectData = Pool ? Pool->FindInPool(Handle) : nullptr;
-	return ObjectData ? ObjectData->PoolObject : nullptr;
+	return ObjectData ? *ObjectData : FPoolObjectData::EmptyObject;
 }
 
 // Returns handle associated with given object
@@ -523,6 +596,19 @@ const FPoolObjectHandle& UPoolManagerSubsystem::FindPoolHandleByObject(const UOb
 	const FPoolContainer* Pool = Object ? FindPool(Object->GetClass()) : nullptr;
 	const FPoolObjectData* ObjectData = Pool ? Pool->FindInPool(*Object) : nullptr;
 	return ObjectData ? ObjectData->Handle : FPoolObjectHandle::EmptyHandle;
+}
+
+// Returns from all given handles only valid ones
+void UPoolManagerSubsystem::FindPoolObjectsByHandles(TArray<FPoolObjectData>& OutObjects, const TArray<FPoolObjectHandle>& InHandles) const
+{
+	for (const FPoolObjectHandle& HandleIt : InHandles)
+	{
+		FPoolObjectData PoolObject = FindPoolObjectByHandle(HandleIt);
+		if (PoolObject.IsValid())
+		{
+			OutObjects.Emplace(MoveTemp(PoolObject));
+		}
+	}
 }
 
 /*********************************************************************************************

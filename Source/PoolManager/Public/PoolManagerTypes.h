@@ -41,7 +41,7 @@ struct POOLMANAGER_API FPoolObjectHandle
 	static const FPoolObjectHandle EmptyHandle;
 
 	/** Generates a new handle for the specified object class. */
-	static FPoolObjectHandle NewHandle(const UClass& InObjectClass);
+	static FPoolObjectHandle NewHandle(const UClass* InObjectClass);
 
 	/** Returns true if Hash is generated. */
 	FORCEINLINE bool IsValid() const { return ObjectClass && Hash.IsValid(); }
@@ -170,6 +170,7 @@ struct POOLMANAGER_API FPoolContainer
 };
 
 typedef TFunction<void(const FPoolObjectData&)> FOnSpawnCallback;
+typedef TFunction<void(const TArray<FPoolObjectData>&)> FOnSpawnAllCallback;
 
 /**
  * Contains the functions that are called when the object is spawned.
