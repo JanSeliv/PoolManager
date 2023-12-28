@@ -150,6 +150,7 @@ void UPoolManagerSubsystem::TakeFromPool(TArray<FSpawnRequest>& InOutRequests, c
 
 	TArray<FPoolObjectHandle> AllHandles;
 	TArray<FSpawnRequest> RequestsToCreate;
+	FPoolObjectHandle LastHandleRequest = FPoolObjectHandle::EmptyHandle;
 
 	// --- Take if free objects in pool first
 	for (FSpawnRequest& It : InOutRequests)
@@ -162,6 +163,7 @@ void UPoolManagerSubsystem::TakeFromPool(TArray<FSpawnRequest>& InOutRequests, c
 		{
 			It.Handle = FPoolObjectHandle::NewHandle(It.Class);
 			RequestsToCreate.Emplace(It);
+			LastHandleRequest = It.Handle;
 		}
 
 		AllHandles.Emplace(It.Handle);
@@ -184,20 +186,22 @@ void UPoolManagerSubsystem::TakeFromPool(TArray<FSpawnRequest>& InOutRequests, c
 	if (Completed)
 	{
 		const TWeakObjectPtr<const ThisClass> WeakThis(this);
-		OnEachSpawned = [WeakThis, AllHandles, Completed](const FPoolObjectData& ObjectData)
+		OnEachSpawned = [WeakThis, AllHandles, LastHandleRequest, Completed](const FPoolObjectData& ObjectData)
 		{
 			const UPoolManagerSubsystem* PoolManager = WeakThis.Get();
-			if (!PoolManager)
+			if (!PoolManager
+				|| ObjectData.Handle != LastHandleRequest)
 			{
+				// Not last object are spawned yet
+				// We can rely on LastHandle because the order of requests in queue is preserved
 				return;
 			}
 
 			TArray<FPoolObjectData> OutObjects;
 			PoolManager->FindPoolObjectsByHandles(OutObjects, AllHandles);
-			if (OutObjects.Num() == AllHandles.Num())
-			{
-				Completed(OutObjects);
-			}
+			ensureMsgf(OutObjects.Num() == AllHandles.Num(), TEXT("ASSERT: [%i] %s:\n'It's last Spawn Request is processed, however some of objects failed to spawn or have been destroyed!"), __LINE__, *FString(__FUNCTION__));
+
+			Completed(OutObjects);
 		};
 	}
 
