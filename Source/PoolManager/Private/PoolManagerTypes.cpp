@@ -14,10 +14,15 @@ const FPoolObjectData FPoolObjectData::EmptyObject = FPoolObjectData();
 const FPoolContainer FPoolContainer::EmptyPool = FPoolContainer();
 
 // Generates a new handle for the specified object class
-FPoolObjectHandle FPoolObjectHandle::NewHandle(const UClass& InObjectClass)
+FPoolObjectHandle FPoolObjectHandle::NewHandle(const UClass* InObjectClass)
 {
+	if (!ensureMsgf(InObjectClass, TEXT("ASSERT: [%i] %s:\n'InObjectClass' is null, can't generate new handle!"), __LINE__, *FString(__FUNCTION__)))
+	{
+		return EmptyHandle;
+	}
+
 	FPoolObjectHandle Handle;
-	Handle.ObjectClass = &InObjectClass;
+	Handle.ObjectClass = InObjectClass;
 	Handle.Hash = FGuid::NewGuid();
 	return Handle;
 }
@@ -56,7 +61,7 @@ FPoolObjectData* FPoolContainer::FindInPool(const FPoolObjectHandle& Handle)
 	{
 		return nullptr;
 	}
-	
+
 	return PoolObjects.FindByPredicate([&Handle](const FPoolObjectData& PoolObjectIt)
 	{
 		return PoolObjectIt.Handle == Handle;
