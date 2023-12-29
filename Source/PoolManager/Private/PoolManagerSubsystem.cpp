@@ -25,26 +25,21 @@ UPoolManagerSubsystem* UPoolManagerSubsystem::GetPoolManagerByClass(TSubclassOf<
 		OptionalClass = StaticClass();
 	}
 
-	const UWorld* FoundWorld = OptionalWorldContext
-		                           ? GEngine->GetWorldFromContextObject(OptionalWorldContext, EGetWorldErrorMode::Assert)
-		                           : GEngine->GetCurrentPlayWorld();
-
+	const UWorld* World = OptionalWorldContext
+		                      ? GEngine->GetWorldFromContextObject(OptionalWorldContext, EGetWorldErrorMode::ReturnNull)
+		                      : GEngine->GetCurrentPlayWorld();
 #if WITH_EDITOR
-	if (!FoundWorld && GEditor)
+	if (!World && GIsEditor && GEditor)
 	{
-		// If world is not found, most likely a game did not start yet and we are in editor
-		const FWorldContext& WorldContext = GEditor->IsPlaySessionInProgress() ? *GEditor->GetPIEWorldContext() : GEditor->GetEditorWorldContext();
-		FoundWorld = WorldContext.World();
+		World = GEditor->IsPlaySessionInProgress()
+			        ? (GEditor->GetCurrentPlayWorld() ? GEditor->GetCurrentPlayWorld() : (GEditor->GetPIEWorldContext() ? GEditor->GetPIEWorldContext()->World() : nullptr))
+			        : GEditor->GetEditorWorldContext().World();
+		World = World ? World : GWorld;
 	}
-#endif // WITH_EDITOR
+#endif
 
-	if (!ensureMsgf(FoundWorld, TEXT("%s: Can not obtain current world"), *FString(__FUNCTION__)))
-	{
-		return nullptr;
-	}
-
-	UPoolManagerSubsystem* FoundPoolManager = Cast<UPoolManagerSubsystem>(FoundWorld->GetSubsystemBase(OptionalClass));
-	if (!ensureMsgf(FoundPoolManager, TEXT("%s: 'Can not find Pool Manager for %s class in %s world"), *FString(__FUNCTION__), *OptionalClass->GetName(), *FoundWorld->GetName()))
+	UPoolManagerSubsystem* FoundPoolManager = World ? Cast<UPoolManagerSubsystem>(World->GetSubsystemBase(OptionalClass)) : nullptr;
+	if (!ensureMsgf(FoundPoolManager, TEXT("%s: 'Can not find Pool Manager for %s class in %s world"), *FString(__FUNCTION__), *OptionalClass->GetName(), *World->GetName()))
 	{
 		return nullptr;
 	}
