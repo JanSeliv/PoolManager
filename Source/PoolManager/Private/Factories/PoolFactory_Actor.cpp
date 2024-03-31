@@ -36,6 +36,7 @@ UObject* UPoolFactory_Actor::SpawnNow_Implementation(const FSpawnRequest& Reques
 	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	SpawnParameters.bDeferConstruction = true; // Delay construction to add it to the pool first
 	SpawnParameters.bNoFail = true; // Do not fail if spawn fails
+	SpawnParameters.bCreateActorPackage = false; // Do not bake this runtime actor into World Partition level
 	AActor* NewActor = World->SpawnActor(ClassToSpawn, &Request.Transform, SpawnParameters);
 	checkf(NewActor, TEXT("ERROR: [%i] %s:\n'NewActor' was not spawned!"), __LINE__, *FString(__FUNCTION__));
 
