@@ -3,8 +3,6 @@
 #pragma once
 
 #include "Modules/ModuleInterface.h"
-//---
-#include "Modules/ModuleManager.h"
 
 class POOLMANAGEREDITOR_API FPoolManagerEditorModule : public IModuleInterface
 {

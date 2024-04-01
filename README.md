@@ -19,6 +19,8 @@ Check out our [Release](https://github.com/JanSeliv/PoolManager/releases) page f
 Also, explore this [game project repository](https://github.com/JanSeliv/Bomber) to view the Pool Manager in action.
 
 ## 📅 Changelog
+#### 
+- Updated to **Unreal Engine 5.4**.
 #### 2023-11-25
 - Updated to **Unreal Engine 5.3**.
 - Introduced **Factories** to handle differences in pools by object archetypes (e.g.: uobjects, actors, components, widgets etc.).

@@ -183,7 +183,7 @@ void UK2Node_TakeFromPool::ExpandNode(class FKismetCompilerContext& CompilerCont
 
 	// Create Completed delegate parameter
 	const FName DelegateCompletedParamName(TEXT("Completed"));
-	UK2Node_CustomEvent* CompletedEventNode = CompilerContext.SpawnIntermediateEventNode<UK2Node_CustomEvent>(this, CallClassPin, SourceGraph);
+	UK2Node_CustomEvent* CompletedEventNode = CompilerContext.SpawnIntermediateNode<UK2Node_CustomEvent>(this, SourceGraph);
 	CompletedEventNode->CustomFunctionName = *FString::Printf(TEXT("Completed_%s"), *CompilerContext.GetGuid(this));
 	CompletedEventNode->AllocateDefaultPins();
 	{
@@ -263,7 +263,7 @@ bool UK2Node_TakeFromPool::IsCompatibleWithGraph(const UEdGraph* TargetGraph) co
 	bool bIsCompatible = false;
 	// Can only place events in ubergraphs and macros (other code will help prevent macros with latents from ending up in functions), and basicasync task creates an event node:
 	const EGraphType GraphType = TargetGraph->GetSchema()->GetGraphType(TargetGraph);
-	if (GraphType == EGraphType::GT_Ubergraph || GraphType == EGraphType::GT_Macro)
+	if (GraphType == GT_Ubergraph || GraphType == GT_Macro)
 	{
 		bIsCompatible = true;
 	}

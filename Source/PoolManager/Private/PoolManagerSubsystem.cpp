@@ -65,9 +65,9 @@ void UPoolManagerSubsystem::BPTakeFromPool(const UClass* ObjectClass, const FTra
 	FSpawnRequest Request;
 	Request.Class = ObjectClass;
 	Request.Transform = Transform;
-	Request.Callbacks.OnPostSpawned = [Completed](const FPoolObjectData& ObjectData)
+	Request.Callbacks.OnPostSpawned = [Completed](const FPoolObjectData& It)
 	{
-		Completed.ExecuteIfBound(ObjectData.PoolObject);
+		Completed.ExecuteIfBound(It.PoolObject);
 	};
 	CreateNewObjectInPool(Request);
 }
