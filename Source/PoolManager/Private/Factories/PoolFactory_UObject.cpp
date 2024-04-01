@@ -3,6 +3,7 @@
 #include "Factories/PoolFactory_UObject.h"
 //---
 #include "Data/PoolManagerSettings.h"
+#include "Engine/World.h"
 //---
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PoolFactory_UObject)
 
