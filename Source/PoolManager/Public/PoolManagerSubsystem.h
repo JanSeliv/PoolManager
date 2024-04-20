@@ -57,14 +57,14 @@ public:
 	/** Returns the pointer to the Pool Manager.
 	 * Is useful for blueprints to obtain **default** Pool Manager.
 	 * @param OptionalWorldContext is optional parameter and hidden in blueprints, can be null in most cases, could be useful to avoid obtaining the world automatically. */
-	UFUNCTION(BlueprintPure, meta = (WorldContext = "OptionalWorldContext"))
+	UFUNCTION(BlueprintPure, meta = (WorldContext = "OptionalWorldContext", CallableWithoutWorldContext))
 	static UPoolManagerSubsystem* GetPoolManager(const UObject* OptionalWorldContext = nullptr) { return GetPoolManagerByClass(StaticClass(), OptionalWorldContext); }
 
 	/** Returns the pointer to custom Pool Manager by given class.
 	 * Is useful for blueprints to obtain your **custom** Pool Manager. 
 	 * @param OptionalClass is optional, specify the class if you implemented your own Pool Manager.
 	 * @param OptionalWorldContext is optional parameter and hidden in blueprints, can be null in most cases, could be useful to avoid obtaining the world automatically. */
-	UFUNCTION(BlueprintPure, meta = (WorldContext = "OptionalWorldContext", DeterminesOutputType = "OptionalClass", BlueprintAutocast))
+	UFUNCTION(BlueprintPure, meta = (WorldContext = "OptionalWorldContext", CallableWithoutWorldContext, DeterminesOutputType = "OptionalClass", BlueprintAutocast))
 	static UPoolManagerSubsystem* GetPoolManagerByClass(TSubclassOf<UPoolManagerSubsystem> OptionalClass = nullptr, const UObject* OptionalWorldContext = nullptr);
 
 	/*********************************************************************************************
