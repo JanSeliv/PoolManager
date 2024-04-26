@@ -25,9 +25,11 @@ class POOLMANAGER_API UPoolFactory_UObject : public UObject
 {
 	GENERATED_BODY()
 
+	/*********************************************************************************************
+	 * Setup overrides
+	 ********************************************************************************************* */
 public:
-	/** Returns the class of object that this factory will create and manage.
-	 * Has to be overridden by child classes if it wants to handle logic for specific class and its children.
+	/** OVERRIDE by child class to return the class of an object that this factory will create and manage.
 	 * E.g: UObject for UPoolFactory_UObject, AActor for UPoolFactory_Actor, UWidget for UPoolFactory_Widget etc. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Pool Factory")
 	const UClass* GetObjectClass() const;
@@ -35,21 +37,25 @@ public:
 
 	/*********************************************************************************************
 	 * Creation
+	 * RequestSpawn -> DequeueSpawnRequest -> SpawnNow -> OnPreRegistered -> OnPostSpawned
 	 ********************************************************************************************* */
 public:
-	/** Method to queue object spawn requests. */
+	/** Method to queue object spawn requests.
+	 * Is called from UPoolManagerSubsystem::CreateNewObjectInPool. */
 	UFUNCTION(BlueprintNativeEvent, Blueprintable, Category = "Pool Factory", meta = (AutoCreateRefTerm = "Request"))
 	void RequestSpawn(const FSpawnRequest& Request);
 	virtual void RequestSpawn_Implementation(const FSpawnRequest& Request);
 
-	/** Method to immediately spawn requested object. */
+	/** Removes the first spawn request from the queue and returns it.
+	 * Is called after 'RequestSpawn'. */
+	UFUNCTION(BlueprintCallable, Category = "Pool Factory")
+	virtual bool DequeueSpawnRequest(FSpawnRequest& OutRequest);
+
+	/** Method to immediately spawn requested object.
+	 * Is called after 'DequeueSpawnRequest'. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Factory", meta = (AutoCreateRefTerm = "Request"))
 	UObject* SpawnNow(const FSpawnRequest& Request);
 	virtual UObject* SpawnNow_Implementation(const FSpawnRequest& Request);
-
-	/** Removes the first spawn request from the queue and returns it. */
-	UFUNCTION(BlueprintCallable, Category = "Pool Factory")
-	virtual bool DequeueSpawnRequest(FSpawnRequest& OutRequest);
 
 	/** Alternative method to remove specific spawn request from the queue and returns it. */
 	UFUNCTION(BlueprintCallable, Category = "Pool Factory")
@@ -58,6 +64,16 @@ public:
 	/** Returns true if the spawn queue is empty, so there are no spawn request at current moment. */
 	UFUNCTION(BlueprintPure, Category = "Pool Factory")
 	virtual FORCEINLINE bool IsSpawnQueueEmpty() const { return SpawnQueueInternal.IsEmpty(); }
+
+	/** Is called right after object is spawned and before it is registered in the Pool.
+	 * Is called after 'SpawnNow'. */
+	UFUNCTION(BlueprintCallable, Category = "C++")
+	virtual void OnPreRegistered(const FSpawnRequest& Request, const FPoolObjectData& ObjectData);
+
+	/** Is called right after object is spawned and registered in the Pool.
+	 * Is called after 'OnPreRegistered'. */
+	UFUNCTION(BlueprintCallable, Category = "C++")
+	virtual void OnPostSpawned(const FSpawnRequest& Request, const FPoolObjectData& ObjectData);
 
 protected:
 	/** Is called on next frame to process a chunk of the spawn queue. */

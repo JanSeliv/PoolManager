@@ -5,6 +5,7 @@
 #include "UObject/Object.h"
 //---
 #include "Misc/Guid.h"
+#include "Templates/NonNullSubclassOf.h"
 //---
 #include "PoolManagerTypes.generated.h"
 
@@ -210,4 +211,8 @@ struct POOLMANAGER_API FSpawnRequest
 
 	/** Returns true if this spawn request can be processed. */
 	FORCEINLINE bool IsValid() const { return Class && Handle.IsValid(); }
+
+	/** Returns requested class or crashes if it is not set or can't be casted to the specified type. */ 
+	template <typename T = UObject>
+	FORCEINLINE TNonNullSubclassOf<T> GetClassChecked() const { return TNonNullSubclassOf<T>(const_cast<UClass*>(Class.Get())); }
 };
