@@ -28,9 +28,6 @@ UObject* UPoolFactory_Actor::SpawnNow_Implementation(const FSpawnRequest& Reques
 	UWorld* World = GetWorld();
 	checkf(World, TEXT("ERROR: [%i] %s:\n'World' is null!"), __LINE__, *FString(__FUNCTION__));
 
-	const TSubclassOf<AActor> ClassToSpawn = const_cast<UClass*>(Request.Class.Get());
-	checkf(ClassToSpawn, TEXT("ERROR: [%i] %s:\n'ClassToSpawn' is null!"), __LINE__, *FString(__FUNCTION__));
-
 	FActorSpawnParameters SpawnParameters;
 	SpawnParameters.OverrideLevel = World->PersistentLevel; // Always keep new objects on Persistent level
 	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
@@ -40,31 +37,16 @@ UObject* UPoolFactory_Actor::SpawnNow_Implementation(const FSpawnRequest& Reques
 	SpawnParameters.bCreateActorPackage = false; // Do not bake this runtime actor into World Partition level
 #endif
 
-	AActor* NewActor = World->SpawnActor(ClassToSpawn, &Request.Transform, SpawnParameters);
-	checkf(NewActor, TEXT("ERROR: [%i] %s:\n'NewActor' was not spawned!"), __LINE__, *FString(__FUNCTION__));
+	return World->SpawnActor(Request.GetClassChecked<AActor>(), &Request.Transform, SpawnParameters);
+}
 
-	FPoolObjectData PoolObjectData;
-	PoolObjectData.bIsActive = true;
-	PoolObjectData.PoolObject = NewActor;
-	PoolObjectData.Handle = Request.Handle;
+// Is overridden to finish spawning the actor since it was deferred
+void UPoolFactory_Actor::OnPreRegistered(const FSpawnRequest& Request, const FPoolObjectData& ObjectData)
+{
+	Super::OnPreRegistered(Request, ObjectData);
 
-	if (Request.Callbacks.OnPreRegistered != nullptr)
-	{
-		Request.Callbacks.OnPreRegistered(PoolObjectData);
-	}
-
-	if (AActor* SpawnedActor = Cast<AActor>(NewActor))
-	{
-		// Call construction script since it was delayed before to add it to the pool first
-		SpawnedActor->FinishSpawning(Request.Transform);
-	}
-
-	if (Request.Callbacks.OnPostSpawned != nullptr)
-	{
-		Request.Callbacks.OnPostSpawned(PoolObjectData);
-	}
-
-	return NewActor;
+	AActor& SpawnedActor = ObjectData.GetChecked<AActor>();
+	SpawnedActor.FinishSpawning(Request.Transform);
 }
 
 /*********************************************************************************************
