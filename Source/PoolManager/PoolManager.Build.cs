@@ -20,6 +20,7 @@ public class PoolManager : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new[]
 			{
 				"CoreUObject", "Engine", "Slate", "SlateCore" // Core
+				, "UMG" // Created UPoolFactory_UserWidget
 			}
 		);
 

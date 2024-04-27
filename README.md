@@ -21,6 +21,7 @@ Also, explore this [game project repository](https://github.com/JanSeliv/Bomber)
 ## 📅 Changelog
 #### 
 - Updated to **Unreal Engine 5.4**.
+- Implemented **User Widgets support** allowing to pool widgets. 
 #### 2023-11-25
 - Updated to **Unreal Engine 5.3**.
 - Introduced **Factories** to handle differences in pools by object archetypes (e.g.: uobjects, actors, components, widgets etc.).
