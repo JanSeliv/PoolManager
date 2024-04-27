@@ -83,7 +83,7 @@ public:
 	 *  @warning 'SpawnObjectsPerFrame' affects how fast new objects are created, it can be changed in'Project Settings' -> "Plugins" -> "Pool Manager".
 	 *  @warning Is custom blueprint node implemented in K2Node_TakeFromPool.h, so can't be overridden and accessible on graph (not inside functions).
 	 *  @warning Node's output will node work in for/while loop in blueprints because of Completed delegate: to achieve loop connect output exec to input exec. */
-	UFUNCTION(BlueprintCallable, Category = "Pool Manager", meta = (BlueprintInternalUseOnly = "true"))
+	UFUNCTION(BlueprintCallable, Category = "Pool Manager", meta = (BlueprintInternalUseOnly = "true", AutoCreateRefTerm = "Transform"))
 	void BPTakeFromPool(const UClass* ObjectClass, const FTransform& Transform, const FOnTakenFromPool& Completed);
 
 	/** Is code-overridable alternative version of TakeFromPool() that calls callback functions when the object is ready.
