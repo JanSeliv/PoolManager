@@ -147,8 +147,9 @@ void UK2Node_TakeFromPool::ExpandNode(class FKismetCompilerContext& CompilerCont
 			}
 			else
 			{
-				// Copy literal value
+				// Ensure the default value is copied even if not linked
 				CallClassPin->DefaultValue = ClassPin->DefaultValue;
+				CallClassPin->DefaultObject = ClassPin->DefaultObject;
 			}
 		}
 		else
@@ -213,7 +214,7 @@ void UK2Node_TakeFromPool::ExpandNode(class FKismetCompilerContext& CompilerCont
 
 	// connect loaded object from event to assign
 	{
-		UEdGraphPin* LoadedAssetEventPin = CompletedEventNode->FindPin(TEXT("Object"));
+		UEdGraphPin* LoadedAssetEventPin = CompletedEventNode->FindPin(ObjectOutputName);
 		ensure(LoadedAssetEventPin);
 		UEdGraphPin* AssignRHSPPin = AssignNode->GetValuePin();
 		bIsErrorFree &= AssignRHSPPin && LoadedAssetEventPin && Schema->TryCreateConnection(LoadedAssetEventPin, AssignRHSPPin);
