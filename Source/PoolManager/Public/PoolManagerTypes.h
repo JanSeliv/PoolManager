@@ -23,6 +23,9 @@ enum class EPoolObjectState : uint8
 	Active
 };
 
+struct FSpawnRequest;
+struct FPoolObjectData;
+
 /**
  * A handle for managing pool object indirectly.
  * - Provides a unique identifier, Hash, with associated object in the pool.
@@ -38,11 +41,28 @@ struct POOLMANAGER_API FPoolObjectHandle
 	/* Default constructor of empty handle. */
 	FPoolObjectHandle() = default;
 
+	/** Parameterized constructor that takes class of the object, generates handle automatically. */
+	explicit FPoolObjectHandle(const UClass* InClass);
+
+	/*********************************************************************************************
+	 * Static Helpers
+	 ********************************************************************************************* */
+
 	/** Empty pool object handle. */
 	static const FPoolObjectHandle EmptyHandle;
 
 	/** Generates a new handle for the specified object class. */
 	static FPoolObjectHandle NewHandle(const UClass* InObjectClass);
+
+	/** Converts from array of spawn requests to array of handles. */
+	static void Conv_RequestsToHandles(TArray<FPoolObjectHandle>& OutHandles, const TArray<FSpawnRequest>& InRequests);
+
+	/** Converts from array of pool objects to array of handles. */
+	static void Conv_ObjectsToHandles(TArray<FPoolObjectHandle>& OutHandles, const TArray<FPoolObjectData>& InRequests);
+
+	/*********************************************************************************************
+	 * Getters and operators
+	 ********************************************************************************************* */
 
 	/** Returns true if Hash is generated. */
 	FORCEINLINE bool IsValid() const { return ObjectClass && Hash.IsValid(); }
@@ -57,7 +77,6 @@ struct POOLMANAGER_API FPoolObjectHandle
 	 * Fields
 	 * Is private to prevent direct access to the fields, use NewHandle() instead.
 	 ********************************************************************************************* */
-public:
 	const UClass* GetObjectClass() const { return ObjectClass; }
 	const FGuid& GetHash() const { return Hash; }
 
@@ -78,14 +97,25 @@ struct POOLMANAGER_API FPoolObjectData
 {
 	GENERATED_BODY()
 
-	/** Empty pool object data. */
-	static const FPoolObjectData EmptyObject;
-
 	/* Default constructor. */
 	FPoolObjectData() = default;
 
 	/* Parameterized constructor that takes object to keep. */
 	explicit FPoolObjectData(UObject* InPoolObject);
+
+	/*********************************************************************************************
+	 * Static Helpers
+	 ********************************************************************************************* */
+
+	/** Empty pool object data. */
+	static const FPoolObjectData EmptyObject;
+
+	/** Converts to array of objects. */
+	static void Conv_PoolDataToObjects(TArray<UObject*>& OutObjects, const TArray<FPoolObjectData>& InPoolData);
+
+	/*********************************************************************************************
+	 * Fields
+	 ********************************************************************************************* */
 
 	/** Is true whenever the object is taken from the pool. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient)
@@ -98,6 +128,10 @@ struct POOLMANAGER_API FPoolObjectData
 	/** The handle associated with this pool object for management within the Pool Manager system. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient)
 	FPoolObjectHandle Handle = FPoolObjectHandle::EmptyHandle;
+
+	/*********************************************************************************************
+	 * Getters and operators
+	 ********************************************************************************************* */
 
 	/** Returns true if the object is taken from the pool. */
 	FORCEINLINE bool IsActive() const { return bIsActive && IsValid(); }
@@ -193,9 +227,17 @@ struct POOLMANAGER_API FSpawnRequest
 {
 	GENERATED_BODY()
 
-	/** Class of the object to spawn. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient)
-	TObjectPtr<const UClass> Class = nullptr;
+	/** Default constructor. */
+	FSpawnRequest() = default;
+
+	/** Parameterized constructor that takes class of the object, generates handle automatically. */
+	explicit FSpawnRequest(const UClass* InClass);
+
+	/** Returns array of spawn requests by specified class and their amount. */
+	static void MakeRequests(TArray<FSpawnRequest>& OutRequests, const UClass* InClass, int32 Amount);
+
+	/** Leave only those requests that are not in the list of free objects. */
+	static void FilterRequests(TArray<FSpawnRequest>& InOutRequests, const TArray<FPoolObjectData>& FreeObjectsData, int32 ExpectedAmount = INDEX_NONE);
 
 	/** Transform of the object to spawn. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient)
@@ -210,9 +252,12 @@ struct POOLMANAGER_API FSpawnRequest
 	FSpawnCallbacks Callbacks;
 
 	/** Returns true if this spawn request can be processed. */
-	FORCEINLINE bool IsValid() const { return Class && Handle.IsValid(); }
+	FORCEINLINE bool IsValid() const { return Handle.IsValid(); }
 
-	/** Returns requested class or crashes if it is not set or can't be casted to the specified type. */ 
+	/** Class of the object to spawn. */
+	const FORCEINLINE UClass* GetClass() const { return Handle.GetObjectClass(); }
+
+	/** Returns requested class or crashes if it is not set or can't be casted to the specified type. */
 	template <typename T = UObject>
-	FORCEINLINE TNonNullSubclassOf<T> GetClassChecked() const { return TNonNullSubclassOf<T>(const_cast<UClass*>(Class.Get())); }
+	FORCEINLINE TNonNullSubclassOf<T> GetClassChecked() const { return TNonNullSubclassOf<T>(const_cast<UClass*>(Handle.GetObjectClass())); }
 };

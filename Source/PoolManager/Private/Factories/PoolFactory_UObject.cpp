@@ -16,7 +16,7 @@
 // Method to queue object spawn requests
 void UPoolFactory_UObject::RequestSpawn_Implementation(const FSpawnRequest& Request)
 {
-	if (!ensureMsgf(Request.IsValid(), TEXT("ASSERT: [%i] %s:\n'Request' is not valid and can't be processed!"), __LINE__, *FString(__FUNCTION__)))
+	if (!ensureMsgf(Request.IsValid(), TEXT("ASSERT: [%i] %hs:\n'Request' is not valid and can't be processed!"), __LINE__, __FUNCTION__))
 	{
 		return;
 	}
@@ -30,7 +30,7 @@ void UPoolFactory_UObject::RequestSpawn_Implementation(const FSpawnRequest& Requ
 	if (SpawnQueueInternal.Num() == 1)
 	{
 		const UWorld* World = GetWorld();
-		checkf(World, TEXT("ERROR: [%i] %s:\n'World' is null!"), __LINE__, *FString(__FUNCTION__));
+		checkf(World, TEXT("ERROR: [%i] %hs:\n'World' is null!"), __LINE__, __FUNCTION__);
 
 		World->GetTimerManager().SetTimerForNextTick(this, &ThisClass::OnNextTickProcessSpawn);
 	}
@@ -39,16 +39,16 @@ void UPoolFactory_UObject::RequestSpawn_Implementation(const FSpawnRequest& Requ
 // Removes the first spawn request from the queue and returns it
 bool UPoolFactory_UObject::DequeueSpawnRequest(FSpawnRequest& OutRequest)
 {
-	if (!SpawnQueueInternal.IsValidIndex(0))
+	bool bResult = false;
+	if (SpawnQueueInternal.IsValidIndex(0))
 	{
-		return false;
+		// Copy and remove first request from the queue (without Swap to keep order)
+		OutRequest = SpawnQueueInternal[0];
+		SpawnQueueInternal.RemoveAt(0);
+
+		bResult = OutRequest.IsValid();
 	}
-
-	// Copy and remove first request from the queue (without Swap to keep order)
-	OutRequest = SpawnQueueInternal[0];
-	SpawnQueueInternal.RemoveAt(0);
-
-	return OutRequest.IsValid();
+	return ensureAlwaysMsgf(bResult, TEXT("ASSERT: [%i] %hs:\nFailed to dequeue the spawn request, handle is '%s'!"), __LINE__, __FUNCTION__, *OutRequest.Handle.GetHash().ToString());
 }
 
 // Alternative method to remove specific spawn request from the queue and returns it.
@@ -59,7 +59,7 @@ bool UPoolFactory_UObject::DequeueSpawnRequestByHandle(const FPoolObjectHandle& 
 		return Request.Handle == Handle;
 	});
 
-	if (!ensureMsgf(SpawnQueueInternal.IsValidIndex(Idx), TEXT("ASSERT: [%i] %s:\nHandle is not found within Spawn Requests, can't dequeue it: %s"), __LINE__, *FString(__FUNCTION__), *Handle.GetHash().ToString()))
+	if (!ensureMsgf(SpawnQueueInternal.IsValidIndex(Idx), TEXT("ASSERT: [%i] %hs:\nHandle is not found within Spawn Requests, can't dequeue it: %s"), __LINE__, __FUNCTION__, *Handle.GetHash().ToString()))
 	{
 		return false;
 	}
@@ -99,12 +99,13 @@ void UPoolFactory_UObject::OnPostSpawned(const FSpawnRequest& Request, const FPo
 void UPoolFactory_UObject::OnNextTickProcessSpawn_Implementation()
 {
 	int32 ObjectsPerFrame = UPoolManagerSettings::Get().GetSpawnObjectsPerFrame();
-	if (!ensureMsgf(ObjectsPerFrame >= 1, TEXT("ASSERT: [%i] %s:\n'ObjectsPerFrame' is less than 1, set the config!"), __LINE__, *FString(__FUNCTION__)))
+	if (!ensureMsgf(ObjectsPerFrame >= 1, TEXT("ASSERT: [%i] %hs:\n'ObjectsPerFrame' is less than 1, set the config!"), __LINE__, __FUNCTION__))
 	{
 		ObjectsPerFrame = 1;
 	}
 
-	for (int32 Index = 0; Index < FMath::Min(ObjectsPerFrame, SpawnQueueInternal.Num()); ++Index)
+	const int32 NumToSpawn = FMath::Min(ObjectsPerFrame, SpawnQueueInternal.Num());
+	for (int32 Index = 0; Index < NumToSpawn; ++Index)
 	{
 		FSpawnRequest OutRequest;
 		if (DequeueSpawnRequest(OutRequest))
@@ -127,7 +128,7 @@ void UPoolFactory_UObject::OnNextTickProcessSpawn_Implementation()
 	if (!SpawnQueueInternal.IsEmpty())
 	{
 		const UWorld* World = GetWorld();
-		checkf(World, TEXT("ERROR: [%i] %s:\n'World' is null!"), __LINE__, *FString(__FUNCTION__));
+		checkf(World, TEXT("ERROR: [%i] %hs:\n'World' is null!"), __LINE__, __FUNCTION__);
 		World->GetTimerManager().SetTimerForNextTick(this, &ThisClass::OnNextTickProcessSpawn);
 	}
 }
@@ -139,6 +140,6 @@ void UPoolFactory_UObject::OnNextTickProcessSpawn_Implementation()
 // Method to destroy given object
 void UPoolFactory_UObject::Destroy_Implementation(UObject* Object)
 {
-	checkf(IsValid(Object), TEXT("ERROR: [%i] %s:\n'IsValid(Object)' is not valid!"), __LINE__, *FString(__FUNCTION__));
+	checkf(IsValid(Object), TEXT("ERROR: [%i] %hs:\n'IsValid(Object)' is not valid!"), __LINE__, __FUNCTION__);
 	Object->ConditionalBeginDestroy();
 }
