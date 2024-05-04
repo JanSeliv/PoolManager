@@ -26,7 +26,7 @@ UObject* UPoolFactory_Actor::SpawnNow_Implementation(const FSpawnRequest& Reques
 	// Super is not called to Spawn Actor instead of NewObject
 
 	UWorld* World = GetWorld();
-	checkf(World, TEXT("ERROR: [%i] %s:\n'World' is null!"), __LINE__, *FString(__FUNCTION__));
+	checkf(World, TEXT("ERROR: [%i] %hs:\n'World' is null!"), __LINE__, __FUNCTION__);
 
 	FActorSpawnParameters SpawnParameters;
 	SpawnParameters.OverrideLevel = World->PersistentLevel; // Always keep new objects on Persistent level
@@ -59,7 +59,7 @@ void UPoolFactory_Actor::Destroy_Implementation(UObject* Object)
 	// Super is not called to Destroy Actor instead of ConditionalBeginDestroy
 
 	AActor* Actor = CastChecked<AActor>(Object);
-	checkf(IsValid(Actor), TEXT("ERROR: [%i] %s:\n'IsValid(Actor)' is null!"), __LINE__, *FString(__FUNCTION__));
+	checkf(IsValid(Actor), TEXT("ERROR: [%i] %hs:\n'IsValid(Actor)' is null!"), __LINE__, __FUNCTION__);
 	Actor->Destroy();
 }
 

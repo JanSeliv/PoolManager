@@ -22,11 +22,13 @@ Also, explore this [game project repository](https://github.com/JanSeliv/Bomber)
 #### 
 - Updated to **Unreal Engine 5.4**.
 - Implemented **User Widgets support** allowing to pool widgets. 
+- Added array support for `Take From Pool` and `Return To Pool` functions:
+> ![PoolManagerArray](https://github.com/JanSeliv/PoolManager/assets/20540872/b28b45ec-5ce0-48ac-ad7e-33e6bcb7758e)
 #### 2023-11-25
 - Updated to **Unreal Engine 5.3**.
 - Introduced **Factories** to handle differences in pools by object archetypes (e.g.: uobjects, actors, components, widgets etc.).
 - **Take From Pool** now spreads out the creation of large pools of UObjects and Actors over multiple frames to avoid any hitches.
-  ![image](https://github.com/JanSeliv/PoolManager/assets/20540872/10bdf24f-d078-4dd8-96bf-de5d92421bc8)
+> ![image](https://github.com/JanSeliv/PoolManager/assets/20540872/10bdf24f-d078-4dd8-96bf-de5d92421bc8)
 #### 2023-05-28
 - 🎉 Initial public release on Unreal Engine 5.2
 

@@ -28,6 +28,7 @@
  *		 - It stores and manages only the data (Pools and objects).
  *		 - It does not manage any specific logic for handling objects, only base pooling logic related to data.
  *		 - Pool Factories are used to handle specific logic about objects behavior (creation, destruction, visibility etc).
+ *		 - Prefer overriding Pool Factories to implement custom logic instead of Pool Manager.
  *
  * Optional features:
  *     - Pool Manager is available even before starting the game that allows to preconstruct your actors on the level.
@@ -68,25 +69,26 @@ public:
 	static UPoolManagerSubsystem* GetPoolManagerByClass(TSubclassOf<UPoolManagerSubsystem> OptionalClass = nullptr, const UObject* OptionalWorldContext = nullptr);
 
 	/*********************************************************************************************
-	 * Take From Pool
+	 * Take From Pool (single object)
 	 * Use it to get an object instead of creating it manually by your own.
 	 ********************************************************************************************* */
 public:
 	DECLARE_DYNAMIC_DELEGATE_OneParam(FOnTakenFromPool, UObject*, Object);
 
-	/** Get the object from a pool by specified class, where output is async that returns the object when is ready.
+	/** Get signle object from a pool by specified class, where output is async that returns the object when is ready.
 	 *  It creates new object if there no free objects contained in pool or does not exist any.
 	 *  @param ObjectClass The class of object to get from the pool.
 	 *  @param Transform The transform to set for the object (if actor).
-	 *  @param Completed The callback function that is called when the object is ready.
+	 *  @param Completed The callback output that is called when the object is ready.
 	 *  @return if any is found and free, activates and returns object from the pool, otherwise async spawns new one next frames and register in the pool.
-	 *  @warning 'SpawnObjectsPerFrame' affects how fast new objects are created, it can be changed in'Project Settings' -> "Plugins" -> "Pool Manager".
-	 *  @warning Is custom blueprint node implemented in K2Node_TakeFromPool.h, so can't be overridden and accessible on graph (not inside functions).
-	 *  @warning Node's output will node work in for/while loop in blueprints because of Completed delegate: to achieve loop connect output exec to input exec. */
-	UFUNCTION(BlueprintCallable, Category = "Pool Manager", meta = (BlueprintInternalUseOnly = "true", AutoCreateRefTerm = "Transform"))
+	 *  @warning BP-ONLY: in code, use TakeFromPool() instead. 
+	 *  - 'SpawnObjectsPerFrame' affects how fast new objects are created, it can be changed in 'Project Settings' -> "Plugins" -> "Pool Manager".
+	 *  - Is custom blueprint node implemented in K2Node_TakeFromPool.h, so can't be overridden and accessible on graph (not inside functions).
+	 *  - use BPTakeFromPoolArray instead of requesting one by one in for/while: 'Completed' output does not work in loops. */
+	UFUNCTION(BlueprintCallable, Category = "Pool Manager", DisplayName = "Take From Pool", meta = (BlueprintInternalUseOnly = "true", AutoCreateRefTerm = "Transform"))
 	void BPTakeFromPool(const UClass* ObjectClass, const FTransform& Transform, const FOnTakenFromPool& Completed);
 
-	/** Is code-overridable alternative version of TakeFromPool() that calls callback functions when the object is ready.
+	/** Is code-overridable alternative version of BPTakeFromPool() that calls callback functions when the object is ready.
 	 * Can be overridden by child code classes.
 	 * Is useful in code with blueprint classes, e.g: TakeFromPool(SomeBlueprintClass);
 	 * @return Handle to the object with the Hash associated with the object, is indirect since the object could be not ready yet. */
@@ -98,15 +100,39 @@ public:
 	FPoolObjectHandle TakeFromPool(const FTransform& Transform = FTransform::Identity, const FOnSpawnCallback& Completed = nullptr) { return TakeFromPool(T::StaticClass(), Transform, Completed); }
 
 	/** Is alternative version of TakeFromPool() to find object in pool or return null. */
-	virtual const FPoolObjectData* TakeFromPoolOrNull(const UClass* ObjectClass, const FTransform& Transform);
-
-	/** Is alternative version of TakeFromPool() that process multiple requests at once, then fires event when all requested objects are ready.
-	 * @param InOutRequests Takes the classes and Transforms, returns the handles associated with objects to be spawned next frames.
-	 * @param Completed The callback function that is called once when all objects are ready. */
-	virtual void TakeFromPool(TArray<FSpawnRequest>& InOutRequests, const FOnSpawnAllCallback& Completed = nullptr);
+	virtual const FPoolObjectData* TakeFromPoolOrNull(const UClass* ObjectClass, const FTransform& Transform = FTransform::Identity);
 
 	/*********************************************************************************************
-	 * Return To Pool
+	 * Take From Pool (multiple objects)
+	 * Use it instead of single-object version when you need to get multiple objects at once.
+	 ********************************************************************************************* */
+public:
+	DECLARE_DYNAMIC_DELEGATE_OneParam(FOnTakenFromPoolArray, const TArray<UObject*>&, Objects);
+
+	/** Is the same as BPTakeFromPool() but for multiple objects.
+	 * @param ObjectClass The class of object to get from the pool.
+	 * @param Amount The amount of objects to get from the pool.
+	 * @param Completed The callback output that is called when all objects are ready.
+	 * @warning BP-ONLY: in code, use TakeFromPoolArray() instead. */
+	UFUNCTION(BlueprintCallable, Category = "Pool Manager", DisplayName = "Take From Pool Array", meta = (BlueprintInternalUseOnly = "true"))
+	void BPTakeFromPoolArray(const UClass* ObjectClass, int32 Amount, const FOnTakenFromPoolArray& Completed);
+
+	/** Is code-overridable alternative version of BPTakeFromPoolArray() that calls callback functions when all objects of the same class are ready. */
+	virtual void TakeFromPoolArray(TArray<FPoolObjectHandle>& OutHandles, const UClass* ObjectClass, int32 Amount, const FOnSpawnAllCallback& Completed = nullptr);
+
+	/** Is alternative version of TakeFromPoolArray() that can process multiple requests of different classes and different transforms at once.
+	 * @param OutHandles Returns the handles associated with objects to be spawned next frames.
+	 * @param InRequests Takes the classes and Transforms.
+	 * @param Completed The callback function that is called once when all objects are ready. */
+	virtual void TakeFromPoolArray(TArray<FPoolObjectHandle>& OutHandles, TArray<FSpawnRequest>& InRequests, const FOnSpawnAllCallback& Completed = nullptr);
+
+	/** Is alternative version of TakeFromPoolArrayOrNull() to find multiple object in pool or return null.
+	 * @param OutObjects All found and taken objects, or empty array if no one is ready yet
+	 * @param InRequests Takes the classes and Transforms. */
+	virtual void TakeFromPoolArrayOrNull(TArray<FPoolObjectData>& OutObjects, TArray<FSpawnRequest>& InRequests);
+
+	/*********************************************************************************************
+	 * Return To Pool (single object)
 	 * Returns an object back to the pool instead of destroying by your own.
 	 ********************************************************************************************* */
 public:
@@ -118,14 +144,27 @@ public:
 	virtual bool ReturnToPool_Implementation(UObject* Object);
 
 	/** Alternative to ReturnToPool() to return object to the pool by its handle.
+	 * Return by handle is more reliable that by objects since object could be not ready yet (in spawning queue).
 	 * Is useful in case when you don't have a reference to the object but have its handle.
 	 * @param Handle The handle associated with the object to return to the pool.
 	 * @return true if handle was found and return successfully, otherwise false. */
 	virtual bool ReturnToPool(const FPoolObjectHandle& Handle);
 
 	/*********************************************************************************************
+	 * Return To Pool (multiple objects)
+	 * Use it instead of single-object version when you need to return multiple objects at once.
+	 ********************************************************************************************* */
+public:
+	/** Is the same as ReturnToPool() but for multiple objects.*/
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Manager")
+	bool ReturnToPoolArray(const TArray<UObject*>& Objects);
+	virtual bool ReturnToPoolArray_Implementation(const TArray<UObject*>& Objects);
+
+	/** Is the same as ReturnToPool() but for multiple handle. */
+	virtual bool ReturnToPoolArray(const TArray<FPoolObjectHandle>& Handles);
+
+	/*********************************************************************************************
 	 * Advanced
-	 *
 	 * In most cases, you don't need to use this section.
 	 ********************************************************************************************* */
 public:
@@ -146,6 +185,9 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Manager", meta = (AutoCreateRefTerm = "InRequest"))
 	FPoolObjectHandle CreateNewObjectInPool(const FSpawnRequest& InRequest);
 	virtual FPoolObjectHandle CreateNewObjectInPool_Implementation(const FSpawnRequest& InRequest);
+
+	/** Is the same as CreateNewObjectInPool() but for multiple objects. */
+	virtual void CreateNewObjectsArrayInPool(TArray<FSpawnRequest>& InRequests, TArray<FPoolObjectHandle>& OutAllHandles, const FOnSpawnAllCallback& Completed = nullptr);
 
 	/*********************************************************************************************
 	 * Advanced - Factories
