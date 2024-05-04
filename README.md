@@ -19,7 +19,7 @@ Check out our [Release](https://github.com/JanSeliv/PoolManager/releases) page f
 Also, explore this [game project repository](https://github.com/JanSeliv/Bomber) to view the Pool Manager in action.
 
 ## 📅 Changelog
-#### 
+#### 2024-05-04
 - Updated to **Unreal Engine 5.4**.
 - Implemented **User Widgets support** allowing to pool widgets. 
 - Added array support for `Take From Pool` and `Return To Pool` functions:
