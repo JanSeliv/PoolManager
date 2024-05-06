@@ -4,21 +4,22 @@
 
 #include "K2Node_TakeFromPoolBase.h"
 //---
-#include "K2Node_TakeFromPool.generated.h"
+#include "K2Node_TakeFromPoolArray.generated.h"
 
 /**
- * Represents TakeFromPool blueprint node.
+ * Represents TakeFromPoolArray blueprint node.
  */
 UCLASS()
-class POOLMANAGEREDITOR_API UK2Node_TakeFromPool : public UK2Node_TakeFromPoolBase
+class POOLMANAGEREDITOR_API UK2Node_TakeFromPoolArray : public UK2Node_TakeFromPoolBase
 {
 	GENERATED_BODY()
 
 public:
-	static inline const FName TransformInputName = TEXT("Transform");
+	static inline const FName AmountInputName = TEXT("Amount");
 
 	// UK2Node_TakeFromPoolBase
-	virtual FORCEINLINE FName GetReturnValuePinName() override { return TEXT("Object"); }
+	virtual FORCEINLINE FName GetReturnValuePinName() override { return TEXT("Objects"); }
+	virtual FCreatePinParams GetReturnValuePinParams() const override;
 	virtual FName GetNativeFunctionName() const override;
 	virtual bool PostExpandNode(FKismetCompilerContext& CompilerContext, UEdGraph& SourceGraph, UK2Node_CallFunction& CallTakeFromPoolNode) override;
 	// end of UK2Node_TakeFromPoolBase
