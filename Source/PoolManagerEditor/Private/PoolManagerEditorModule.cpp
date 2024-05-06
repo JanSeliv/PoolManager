@@ -1,8 +1,8 @@
 ﻿// Copyright (c) Yevhenii Selivanov.
 
 #include "PoolManagerEditorModule.h"
-
-#define LOCTEXT_NAMESPACE "FPoolManagerEditorModule"
+//---
+#include "Modules/ModuleManager.h"
 
 void FPoolManagerEditorModule::StartupModule()
 {
@@ -15,6 +15,4 @@ void FPoolManagerEditorModule::ShutdownModule()
 	// we call this function before unloading the module.
 }
 
-#undef LOCTEXT_NAMESPACE
-    
 IMPLEMENT_MODULE(FPoolManagerEditorModule, PoolManagerEditor)

@@ -2,38 +2,27 @@
 
 #pragma once
 
-#include "K2Node.h"
+#include "K2Node_TakeFromPoolBase.h"
 //---
 #include "K2Node_TakeFromPool.generated.h"
 
-UCLASS(MinimalAPI)
-class UK2Node_TakeFromPool : public UK2Node
+/**
+ * Represents TakeFromPool blueprint node.
+ */
+UCLASS()
+class POOLMANAGEREDITOR_API UK2Node_TakeFromPool : public UK2Node_TakeFromPoolBase
 {
 	GENERATED_BODY()
 
 public:
-	static inline const FName ClassInputName = TEXT("ObjectClass");
 	static inline const FName TransformInputName = TEXT("Transform");
-	static inline const FName ObjectOutputName = TEXT("Object");
 
-	// UEdGraphNode interface
+	// UK2Node_TakeFromPoolBase
+	virtual FORCEINLINE FName GetReturnValuePinName() override { return TEXT("Object"); }
+	virtual FName GetNativeFunctionName() const override;
+	virtual bool PostExpandNode(FKismetCompilerContext& CompilerContext, UEdGraph& SourceGraph, UK2Node_CallFunction& CallTakeFromPoolNode) override;
+	// end of UK2Node_TakeFromPoolBase
+
+	/** Is overridden to allocate additional default pins for a given node. */
 	virtual void AllocateDefaultPins() override;
-	virtual FText GetTooltipText() const override;
-	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
-	virtual bool IsCompatibleWithGraph(const UEdGraph* TargetGraph) const override;
-	// End of UEdGraphNode interface
-
-	// UK2Node interface
-	virtual bool IsNodeSafeToIgnore() const override { return true; }
-	virtual bool IsNodePure() const override { return false; }
-	virtual void ExpandNode(class FKismetCompilerContext& CompilerContext, UEdGraph* SourceGraph) override;
-	virtual FName GetCornerIcon() const override;
-	virtual void GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
-	virtual FText GetMenuCategory() const override;
-	virtual bool NodeCausesStructuralBlueprintChange() const override { return true; }
-	virtual void ReallocatePinsDuringReconstruction(TArray<UEdGraphPin*>& OldPins) override;
-	// End of UK2Node interface
-
-protected:
-	virtual FName NativeFunctionName() const;
 };
