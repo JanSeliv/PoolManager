@@ -2,9 +2,10 @@
 
 #include "PoolManagerSubsystem.h"
 //---
-#include "Factories/PoolFactory_UObject.h"
 #include "Data/PoolManagerSettings.h"
+#include "Factories/PoolFactory_UObject.h"
 //---
+#include "Engine/Engine.h"
 #include "Engine/World.h"
 //---
 #if WITH_EDITOR
