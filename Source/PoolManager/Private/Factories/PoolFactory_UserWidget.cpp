@@ -17,12 +17,7 @@ const UClass* UPoolFactory_UserWidget::GetObjectClass_Implementation() const
 UObject* UPoolFactory_UserWidget::SpawnNow_Implementation(const FSpawnRequest& Request)
 {
 	// Super is not called to create it properly with own logic
-
-	const UWorld* World = GetWorld();
-	APlayerController* PlayerController = World ? World->GetFirstPlayerController() : nullptr;
-	checkf(PlayerController, TEXT("ERROR: [%i] %hs:\n'PlayerController' is null!"), __LINE__, __FUNCTION__);
-
-	return CreateWidget(PlayerController, Request.GetClassChecked<UUserWidget>());
+	return CreateWidget(GetWorld(), Request.GetClassChecked<UUserWidget>());
 }
 
 // Is overridden to destroy handled User Widget using its engine's RemoveFromParent method
