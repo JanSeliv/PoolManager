@@ -114,6 +114,6 @@ public:
 	 ********************************************************************************************* */
 protected:
 	/** All request to spawn. */
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, Transient, Category = "Pool Factory", meta = (BlueprintProtected, DisplayName = "Spawn Queue"))
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, Transient, AdvancedDisplay, Category = "Pool Factory", meta = (BlueprintProtected, DisplayName = "Spawn Queue"))
 	TArray<FSpawnRequest> SpawnQueueInternal;
 };
