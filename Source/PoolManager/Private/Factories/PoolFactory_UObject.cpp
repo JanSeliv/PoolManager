@@ -21,8 +21,49 @@ void UPoolFactory_UObject::RequestSpawn_Implementation(const FSpawnRequest& Requ
 		return;
 	}
 
-	// Add request to queue
-	SpawnQueueInternal.Emplace(Request);
+	// Lambda to find the correct insertion index based on priority
+	auto FindInsertionIndex = [&](ESpawnRequestPriority Priority)
+	{
+		int32 InsertIdx = 0;
+		for (int32 Index = 0; Index < SpawnQueueInternal.Num(); ++Index)
+		{
+			if (SpawnQueueInternal[Index].Priority < Priority)
+			{
+				break;
+			}
+			InsertIdx = Index + 1;
+		}
+		return InsertIdx;
+	};
+
+	// Insert request based on priority
+	switch (Request.Priority)
+	{
+	case ESpawnRequestPriority::Critical:
+		{
+			// Immediate processing for Critical priority requests
+			SpawnNow(Request);
+			// Exit since we don't add Critical requests to the queue
+			return;
+		}
+
+	case ESpawnRequestPriority::High: // Fall-through
+	case ESpawnRequestPriority::Medium:
+		{
+			// Use lambda to find the correct insertion index based on the priority
+			const int32 InsertIdx = FindInsertionIndex(Request.Priority);
+			SpawnQueueInternal.Insert(Request, InsertIdx);
+		}
+		break;
+
+	case ESpawnRequestPriority::Normal:
+		// Normal, add to the end of the queue
+		SpawnQueueInternal.Emplace(Request);
+		break;
+
+	default:
+		ensureAlwaysMsgf(false, TEXT("ASSERT: [%i] %hs:\n'Priority' is not valid: %d"), __LINE__, __FUNCTION__, static_cast<int32>(Request.Priority));
+	}
 
 	// If this is the first object in the queue, schedule the OnNextTickProcessSpawn to be called on the next frame
 	// Creating UObjects on separate threads is not thread-safe and leads to problems with garbage collection,
