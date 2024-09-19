@@ -19,6 +19,9 @@ Check out our [Release](https://github.com/JanSeliv/PoolManager/releases) page f
 Also, explore this [game project repository](https://github.com/JanSeliv/Bomber) to view the Pool Manager in action.
 
 ## 📅 Changelog
+#### 
+- Implemented **Priorities** to process important objects faster than others.
+>![Priorities](https://github.com/user-attachments/assets/3a0501f6-28ed-4bc9-8f06-93bf95385625)
 #### 2024-05-05
 - Updated to **Unreal Engine 5.4**.
 - Implemented **User Widgets support** allowing to pool widgets.

@@ -23,6 +23,24 @@ enum class EPoolObjectState : uint8
 	Active
 };
 
+/**
+ * Priority that affects the order of processing requests.
+ * Higher priority requests are processed first.
+ */
+UENUM(BlueprintType)
+enum class ESpawnRequestPriority : uint8
+{
+	None UMETA(Hidden),
+	///< Adds to the end of the queue, good for most situations
+	Normal,
+	///< Request will be handled after all High requests, but before Normal, which increases processing speed
+	Medium,
+	///< Guarantees that the new request will be added to the beginning of the queue for next-frame processing; useful for urgent activations, especially when it is very important to have no delay, but other requests will be delayed
+	High,
+	///< Immediately handles the request in the current frame, without adding it to a queue; should not be used in bulk requests as this request is handled synchronously, which might cause a CPU freeze if called too many times
+	Critical,
+};
+
 struct FSpawnRequest;
 struct FPoolObjectData;
 
@@ -234,7 +252,7 @@ struct POOLMANAGER_API FSpawnRequest
 	explicit FSpawnRequest(const UClass* InClass);
 
 	/** Returns array of spawn requests by specified class and their amount. */
-	static void MakeRequests(TArray<FSpawnRequest>& OutRequests, const UClass* InClass, int32 Amount);
+	static void MakeRequests(TArray<FSpawnRequest>& OutRequests, const UClass* InClass, int32 Amount, ESpawnRequestPriority Priority);
 
 	/** Leave only those requests that are not in the list of free objects. */
 	static void FilterRequests(TArray<FSpawnRequest>& InOutRequests, const TArray<FPoolObjectData>& FreeObjectsData, int32 ExpectedAmount = INDEX_NONE);
@@ -242,6 +260,10 @@ struct POOLMANAGER_API FSpawnRequest
 	/** Transform of the object to spawn. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient)
 	FTransform Transform = FTransform::Identity;
+
+	/** Priority of the spawn request in the queue, higher priority object is spawned first. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient)
+	ESpawnRequestPriority Priority = ESpawnRequestPriority::Normal;
 
 	/** The handle associated with spawning pool object for management within the Pool Manager system.
 	 * Is generated automatically if not set. */
