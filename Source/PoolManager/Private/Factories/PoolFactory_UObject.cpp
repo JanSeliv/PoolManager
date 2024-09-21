@@ -134,6 +134,12 @@ void UPoolFactory_UObject::OnPostSpawned(const FSpawnRequest& Request, const FPo
 	{
 		Request.Callbacks.OnPostSpawned(ObjectData);
 	}
+
+	// Notify the object that it was taken from the pool
+	if (ObjectData.PoolObject->Implements<UPoolObjectCallback>())
+	{
+		IPoolObjectCallback::Execute_OnTakeFromPool(ObjectData.PoolObject, true, Request.Transform);
+	}
 }
 
 // Is called on next frame to process a chunk of the spawn queue
