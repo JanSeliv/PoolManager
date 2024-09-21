@@ -5,6 +5,7 @@
 #include "UObject/Object.h"
 //---
 #include "PoolManagerTypes.h"
+#include "PoolObjectCallback.h"
 //---
 #include "PoolFactory_UObject.generated.h"
 
@@ -97,17 +98,35 @@ public:
 	/** Is called right before taking the object from its pool. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Factory", meta = (AutoCreateRefTerm = "Transform"))
 	void OnTakeFromPool(UObject* Object, const FTransform& Transform);
-	virtual void OnTakeFromPool_Implementation(UObject* Object, const FTransform& Transform) {}
+	virtual void OnTakeFromPool_Implementation(UObject* Object, const FTransform& Transform)
+	{
+		if (Object->Implements<UPoolObjectCallback>())
+		{
+			IPoolObjectCallback::Execute_OnTakeFromPool(Object, false, Transform);
+		}
+	}
 
 	/** Is called right before returning the object back to its pool. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Factory")
 	void OnReturnToPool(UObject* Object);
-	virtual void OnReturnToPool_Implementation(UObject* Object) {}
+	virtual void OnReturnToPool_Implementation(UObject* Object)
+	{
+		if (Object->Implements<UPoolObjectCallback>())
+		{
+			IPoolObjectCallback::Execute_OnReturnToPool(Object);
+		}
+	}
 
 	/** Is called when activates the object to take it from pool or deactivate when is returned back. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Factory")
 	void OnChangedStateInPool(EPoolObjectState NewState, UObject* InObject);
-	virtual void OnChangedStateInPool_Implementation(EPoolObjectState NewState, UObject* InObject) {}
+	virtual void OnChangedStateInPool_Implementation(EPoolObjectState NewState, UObject* InObject)
+	{
+		if (InObject->Implements<UPoolObjectCallback>())
+		{
+			IPoolObjectCallback::Execute_OnChangedStateInPool(InObject, NewState);
+		}
+	}
 
 	/*********************************************************************************************
 	 * Data
