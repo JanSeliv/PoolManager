@@ -8,6 +8,54 @@
 //---
 #include "PoolManagerSubsystem.generated.h"
 
+
+/**
+ * The Macro to take object from the pool.
+ * @param ObjectClass The class of object to get from the pool.
+ * @param SpawnRequestPriority The priority of the request, higher priority objects are spawned first.
+ * @param Transform The transform to set for the object (if actor).
+ * @param CreatedObjectName The property name to store the created object.
+ */
+#define TAKE_OBJECT_FROM_POOL(ObjectClass, SpawnRequestPriority, Transform, CreatedObjectName, ...) \
+	UPoolManagerSubsystem::Get().TakeFromPool(ObjectClass, SpawnRequestPriority, Transform, [__VA_ARGS__](const FPoolObjectData& CreatedObjectName)
+
+/**
+ * The Macro to take objects array from the pool.
+ * @param OutHandles The array to store the handles associated with objects to be spawned.
+ * @param ObjectClass The class of object to get from the pool.
+ * @param SpawnRequestPriority The priority of the request, higher priority objects are spawned first.
+ * @param Amount The amount of objects to get from the pool.
+ * @param CreatedObjectsName The property name to store the created objects.
+ */
+#define TAKE_OBJECTS_ARRAY_FROM_POOL(OutHandles, ObjectClass, SpawnRequestPriority, Amount, CreatedObjectsName, ...) \
+	UPoolManagerSubsystem::Get().TakeFromPoolArray(OutHandles, ObjectClass, SpawnRequestPriority, Amount, [__VA_ARGS__](const TArray<FPoolObjectData>& CreatedObjectsName)
+
+/**
+ * The Macro to take objects array from the pool by spawn requests.
+ * @param OutHandles The array to store the handles associated with objects to be spawned.
+ * @param InRequests The array of spawn requests.
+ * @param CreatedObjectsName The property name to store the created objects.
+ */
+#define TAKE_OBJECTS_ARRAY_FROM_POOL_BY_SPAWN_REQUEST(OutHandles, InRequests, CreatedObjectsName, ...) \
+	UPoolManagerSubsystem::Get().TakeFromPoolArray(OutHandles, InRequests, [__VA_ARGS__](const TArray<FPoolObjectData>& CreatedObjectsName)
+
+/**
+ * The Macro to end the TAKE_OBJECT_FROM_POOL/TAKE_OBJECTS_ARRAY_FROM_POOL/TAKE_OBJECTS_ARRAY_FROM_POOL_BY_SPAWN_REQUEST macros.
+ */
+#define END_TAKE_FROM_POOL );
+
+/**
+ * The Macro to return object to the pool.
+ * @param ObjectOrHandle The object or handle to return to the pool.
+ */
+#define RETURN_OBJECT_TO_POOL(ObjectOrHandle) UPoolManagerSubsystem::Get().ReturnToPool(ObjectOrHandle)
+
+/**
+ * The Macro to return objects array to the pool.
+ * @param ObjectsOrHandles The array of objects or handles to return to the pool.
+ */
+#define RETURN_OBJECTS_ARRAY_TO_POOL(ObjectsOrHandles) UPoolManagerSubsystem::Get().ReturnToPoolArray(ObjectsOrHandles)
+
 /**
  * The Pool Manager helps reuse objects that show up often instead of creating and destroying them each time.
  *
@@ -78,27 +126,37 @@ public:
 	/** Get signle object from a pool by specified class, where output is async that returns the object when is ready.
 	 *  It creates new object if there no free objects contained in pool or does not exist any.
 	 *  @param ObjectClass The class of object to get from the pool.
+	 *  @param Priority The priority of the request, higher priority objects are spawned first.
 	 *  @param Transform The transform to set for the object (if actor).
 	 *  @param Completed The callback output that is called when the object is ready.
-	 *  @param Priority The priority of the request, higher priority objects are spawned first.
 	 *  @return if any is found and free, activates and returns object from the pool, otherwise async spawns new one next frames and register in the pool.
 	 *  @warning BP-ONLY: in code, use TakeFromPool() instead. 
 	 *  - 'SpawnObjectsPerFrame' affects how fast new objects are created, it can be changed in 'Project Settings' -> "Plugins" -> "Pool Manager".
 	 *  - Is custom blueprint node implemented in K2Node_TakeFromPool.h, so can't be overridden and accessible on graph (not inside functions).
 	 *  - use BPTakeFromPoolArray instead of requesting one by one in for/while: 'Completed' output does not work in loops. */
-	UFUNCTION(BlueprintCallable, Category = "Pool Manager", DisplayName = "Take From Pool", meta = (BlueprintInternalUseOnly = "true", AutoCreateRefTerm = "Transform"))
-	void BPTakeFromPool(const UClass* ObjectClass, const FTransform& Transform, const FOnTakenFromPool& Completed, ESpawnRequestPriority Priority);
+	UFUNCTION(BlueprintCallable, Category = "Pool Manager", DisplayName = "Take From Pool",
+		meta = (BlueprintInternalUseOnly = "true", AutoCreateRefTerm = "Transform"))
+	void BPTakeFromPool(const UClass* ObjectClass, ESpawnRequestPriority Priority, const FTransform& Transform,
+	                    const FOnTakenFromPool& Completed);
 
 	/** Is code-overridable alternative version of BPTakeFromPool() that calls callback functions when the object is ready.
 	 * Can be overridden by child code classes.
 	 * Is useful in code with blueprint classes, e.g: TakeFromPool(SomeBlueprintClass);
 	 * @return Handle to the object with the Hash associated with the object, is indirect since the object could be not ready yet. */
-	virtual FPoolObjectHandle TakeFromPool(const UClass* ObjectClass, const FTransform& Transform = FTransform::Identity, const FOnSpawnCallback& Completed = nullptr, ESpawnRequestPriority Priority = ESpawnRequestPriority::Normal);
+	virtual FPoolObjectHandle TakeFromPool(const UClass* ObjectClass,
+	                                       ESpawnRequestPriority Priority = ESpawnRequestPriority::Normal,
+	                                       const FTransform& Transform = FTransform::Identity,
+	                                       const FOnSpawnCallback& Completed = nullptr);
 
 	/** A templated alternative to get the object from a pool by class in template.
 	 * Is useful in code with code classes, e.g: TakeFromPool<AProjectile>(); */
 	template <typename T>
-	FPoolObjectHandle TakeFromPool(const FTransform& Transform = FTransform::Identity, const FOnSpawnCallback& Completed = nullptr, ESpawnRequestPriority Priority = ESpawnRequestPriority::Normal) { return TakeFromPool(T::StaticClass(), Transform, Completed, Priority); }
+	FPoolObjectHandle TakeFromPool(ESpawnRequestPriority Priority = ESpawnRequestPriority::Normal,
+	                               const FTransform& Transform = FTransform::Identity,
+	                               const FOnSpawnCallback& Completed = nullptr)
+	{
+		return TakeFromPool(T::StaticClass(), Priority, Transform, Completed);
+	}
 
 	/** Is alternative version of TakeFromPool() to find object in pool or return null. */
 	virtual const FPoolObjectData* TakeFromPoolOrNull(const UClass* ObjectClass, const FTransform& Transform = FTransform::Identity);
@@ -112,15 +170,19 @@ public:
 
 	/** Is the same as BPTakeFromPool() but for multiple objects.
 	 * @param ObjectClass The class of object to get from the pool.
+	 * @param Priority The priority of the request, higher priority objects are spawned first.
 	 * @param Amount The amount of objects to get from the pool.
 	 * @param Completed The callback output that is called when all objects are ready.
-	 * @param Priority The priority of the request, higher priority objects are spawned first.
 	 * @warning BP-ONLY: in code, use TakeFromPoolArray() instead. */
-	UFUNCTION(BlueprintCallable, Category = "Pool Manager", DisplayName = "Take From Pool Array", meta = (BlueprintInternalUseOnly = "true"))
-	void BPTakeFromPoolArray(const UClass* ObjectClass, int32 Amount, const FOnTakenFromPoolArray& Completed, ESpawnRequestPriority Priority);
+	UFUNCTION(BlueprintCallable, Category = "Pool Manager", DisplayName = "Take From Pool Array",
+		meta = (BlueprintInternalUseOnly = "true"))
+	void BPTakeFromPoolArray(const UClass* ObjectClass, ESpawnRequestPriority Priority, int32 Amount,
+	                         const FOnTakenFromPoolArray& Completed);
 
 	/** Is code-overridable alternative version of BPTakeFromPoolArray() that calls callback functions when all objects of the same class are ready. */
-	virtual void TakeFromPoolArray(TArray<FPoolObjectHandle>& OutHandles, const UClass* ObjectClass, int32 Amount, const FOnSpawnAllCallback& Completed = nullptr, ESpawnRequestPriority Priority = ESpawnRequestPriority::Normal);
+	virtual void TakeFromPoolArray(TArray<FPoolObjectHandle>& OutHandles, const UClass* ObjectClass,
+	                               ESpawnRequestPriority Priority = ESpawnRequestPriority::Normal, int32 Amount = 1,
+	                               const FOnSpawnAllCallback& Completed = nullptr);
 
 	/** Is alternative version of TakeFromPoolArray() that can process multiple requests of different classes and different transforms at once.
 	 * @param OutHandles Returns the handles associated with objects to be spawned next frames.

@@ -53,7 +53,7 @@ UPoolManagerSubsystem* UPoolManagerSubsystem::GetPoolManagerByClass(TSubclassOf<
  ********************************************************************************************* */
 
 // Async version of TakeFromPool() that returns the object by specified class
-void UPoolManagerSubsystem::BPTakeFromPool(const UClass* ObjectClass, const FTransform& Transform, const FOnTakenFromPool& Completed, ESpawnRequestPriority Priority)
+void UPoolManagerSubsystem::BPTakeFromPool(const UClass* ObjectClass, ESpawnRequestPriority Priority, const FTransform& Transform, const FOnTakenFromPool& Completed)
 {
 	const FPoolObjectData* ObjectData = TakeFromPoolOrNull(ObjectClass, Transform);
 	if (ObjectData)
@@ -74,7 +74,7 @@ void UPoolManagerSubsystem::BPTakeFromPool(const UClass* ObjectClass, const FTra
 }
 
 // Is code async version of TakeFromPool() that calls callback functions when the object is ready
-FPoolObjectHandle UPoolManagerSubsystem::TakeFromPool(const UClass* ObjectClass, const FTransform& Transform/* = FTransform::Identity*/, const FOnSpawnCallback& Completed/* = nullptr*/, ESpawnRequestPriority Priority/* = ESpawnRequestPriority::Normal*/)
+FPoolObjectHandle UPoolManagerSubsystem::TakeFromPool(const UClass* ObjectClass, ESpawnRequestPriority Priority/* = ESpawnRequestPriority::Normal*/, const FTransform& Transform/* = FTransform::Identity*/, const FOnSpawnCallback& Completed/* = nullptr*/)
 {
 	const FPoolObjectData* ObjectData = TakeFromPoolOrNull(ObjectClass, Transform);
 	if (ObjectData)
@@ -141,7 +141,7 @@ const FPoolObjectData* UPoolManagerSubsystem::TakeFromPoolOrNull(const UClass* O
  ********************************************************************************************* */
 
 // Is the same as BPTakeFromPool() but for multiple objects
-void UPoolManagerSubsystem::BPTakeFromPoolArray(const UClass* ObjectClass, int32 Amount, const FOnTakenFromPoolArray& Completed, ESpawnRequestPriority Priority)
+void UPoolManagerSubsystem::BPTakeFromPoolArray(const UClass* ObjectClass, ESpawnRequestPriority Priority, int32 Amount, const FOnTakenFromPoolArray& Completed)
 {
 	if (!ensureMsgf(ObjectClass, TEXT("ASSERT: [%i] %hs:\n'ObjectClass' is not specified!"), __LINE__, __FUNCTION__))
 	{
@@ -177,7 +177,7 @@ void UPoolManagerSubsystem::BPTakeFromPoolArray(const UClass* ObjectClass, int32
 }
 
 // Is code-overridable alternative version of BPTakeFromPoolArray() that calls callback functions when all objects of the same class are ready
-void UPoolManagerSubsystem::TakeFromPoolArray(TArray<FPoolObjectHandle>& OutHandles, const UClass* ObjectClass, int32 Amount, const FOnSpawnAllCallback& Completed, ESpawnRequestPriority Priority/* = ESpawnRequestPriority::Normal*/)
+void UPoolManagerSubsystem::TakeFromPoolArray(TArray<FPoolObjectHandle>& OutHandles, const UClass* ObjectClass, ESpawnRequestPriority Priority/* = ESpawnRequestPriority::Normal*/, int32 Amount/* = 1*/, const FOnSpawnAllCallback& Completed)
 {
 	if (!ensureMsgf(ObjectClass, TEXT("ASSERT: [%i] %hs:\n'ObjectClass' is not specified!"), __LINE__, __FUNCTION__)
 		|| !ensureMsgf(Amount > 0, TEXT("ASSERT: [%i] %hs:\n'Amount' is less than 1!"), __LINE__, __FUNCTION__))
