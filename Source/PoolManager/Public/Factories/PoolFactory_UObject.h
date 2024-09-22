@@ -76,6 +76,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "C++")
 	virtual void OnPostSpawned(const FSpawnRequest& Request, const FPoolObjectData& ObjectData);
 
+	/**
+	 * Process critical spawn request immediately.
+	 * @param Request spawn request to process.
+	 */
+	void CriticalSpawn(const FSpawnRequest& Request);
+
 protected:
 	/** Is called on next frame to process a chunk of the spawn queue. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Factory", meta = (BlueprintProtected))

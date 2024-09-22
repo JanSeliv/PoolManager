@@ -42,7 +42,7 @@ void UPoolFactory_UObject::RequestSpawn_Implementation(const FSpawnRequest& Requ
 	case ESpawnRequestPriority::Critical:
 		{
 			// Immediate processing for Critical priority requests
-			SpawnNow(Request);
+			CriticalSpawn(Request);
 			// Exit since we don't add Critical requests to the queue
 			return;
 		}
@@ -140,6 +140,21 @@ void UPoolFactory_UObject::OnPostSpawned(const FSpawnRequest& Request, const FPo
 	{
 		IPoolObjectCallback::Execute_OnTakeFromPool(ObjectData.PoolObject, true, Request.Transform);
 	}
+}
+
+// Method to immediately spawn requested object with Critical priority
+void UPoolFactory_UObject::CriticalSpawn(const FSpawnRequest& Request)
+{
+	UObject* CreatedObject = SpawnNow(Request);
+	checkf(CreatedObject, TEXT("ERROR: [%i] %hs:\n'CreatedObject' is failed to spawn!"), __LINE__, __FUNCTION__);
+
+	FPoolObjectData ObjectData;
+	ObjectData.bIsActive = true;
+	ObjectData.PoolObject = CreatedObject;
+	ObjectData.Handle = Request.Handle;
+
+	OnPreRegistered(Request, ObjectData);
+	OnPostSpawned(Request, ObjectData);
 }
 
 // Is called on next frame to process a chunk of the spawn queue
