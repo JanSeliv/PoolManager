@@ -1,11 +1,11 @@
-﻿// Copyright (c) Lim Young
+﻿// Copyright (c) Lim Young & Yevhenii Selivanov
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "PoolManagerTypes.h"
 #include "UObject/Interface.h"
 #include "PoolObjectCallback.generated.h"
+
+enum class EPoolObjectState : uint8;
 
 UINTERFACE()
 class UPoolObjectCallback : public UInterface
@@ -24,17 +24,19 @@ class POOLMANAGER_API IPoolObjectCallback
 public:
 	/**
 	 * Called when the object is taken from the pool.If IsNewSpawned is true, the object is newly spawned.
-	 * @param IsNewSpawned If true, the object is newly spawned.
+	 * @param bIsNewSpawned If true, the object is newly spawned.
 	 * @param Transform The transform of the object.
 	 */
-	UFUNCTION(BlueprintNativeEvent, Category = "PoolManager")
-	void OnTakeFromPool(bool IsNewSpawned, const FTransform& Transform);
+	UFUNCTION(BlueprintNativeEvent, Category = "PoolManager", meta = (AutoCreateRefTerm = "Transform"))
+	void OnTakeFromPool(bool bIsNewSpawned, const FTransform& Transform);
+	virtual void OnTakeFromPool_Implementation(bool bIsNewSpawned, const FTransform& Transform) {}
 
 	/**
 	 * Called when the object is returned to the pool.
 	 */
 	UFUNCTION(BlueprintNativeEvent, Category = "PoolManager")
 	void OnReturnToPool();
+	virtual void OnReturnToPool_Implementation() {}
 
 	/**
 	 * Called when the object is activated or deactivated.
@@ -42,4 +44,5 @@ public:
 	 */
 	UFUNCTION(BlueprintNativeEvent, Category = "PoolManager")
 	void OnChangedStateInPool(EPoolObjectState NewState);
+	virtual void OnChangedStateInPool_Implementation(EPoolObjectState NewState) {}
 };
