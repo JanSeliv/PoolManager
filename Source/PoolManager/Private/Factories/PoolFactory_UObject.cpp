@@ -2,6 +2,7 @@
 
 #include "Factories/PoolFactory_UObject.h"
 //---
+#include "PoolObjectCallback.h"
 #include "Data/PoolManagerSettings.h"
 //---
 #include "TimerManager.h"
@@ -135,10 +136,11 @@ void UPoolFactory_UObject::OnPostSpawned(const FSpawnRequest& Request, const FPo
 		Request.Callbacks.OnPostSpawned(ObjectData);
 	}
 
-	// Notify the object that it was taken from the pool
-	if (ObjectData.PoolObject->Implements<UPoolObjectCallback>())
+	// Is optional callback if object implements interface
+	if (ObjectData && ObjectData->Implements<UPoolObjectCallback>())
 	{
-		IPoolObjectCallback::Execute_OnTakeFromPool(ObjectData.PoolObject, true, Request.Transform);
+		constexpr bool bIsNewSpawned = true;
+		IPoolObjectCallback::Execute_OnTakeFromPool(ObjectData.Get(), bIsNewSpawned, Request.Transform);
 	}
 }
 
@@ -189,4 +191,39 @@ void UPoolFactory_UObject::Destroy_Implementation(UObject* Object)
 {
 	checkf(IsValid(Object), TEXT("ERROR: [%i] %hs:\n'IsValid(Object)' is not valid!"), __LINE__, __FUNCTION__);
 	Object->ConditionalBeginDestroy();
+}
+
+/*********************************************************************************************
+ * Pool
+ ********************************************************************************************* */
+
+// Is called right before taking the object from its pool
+void UPoolFactory_UObject::OnTakeFromPool_Implementation(UObject* Object, const FTransform& Transform)
+{
+	// Is optional callback if object implements interface
+	if (Object && Object->Implements<UPoolObjectCallback>())
+	{
+		constexpr bool bIsNewSpawned = false;
+		IPoolObjectCallback::Execute_OnTakeFromPool(Object, bIsNewSpawned, Transform);
+	}
+}
+
+// Is called right before returning the object back to its pool
+void UPoolFactory_UObject::OnReturnToPool_Implementation(UObject* Object)
+{
+	// Is optional callback if object implements interface
+	if (Object && Object->Implements<UPoolObjectCallback>())
+	{
+		IPoolObjectCallback::Execute_OnReturnToPool(Object);
+	}
+}
+
+// Is called when activates the object to take it from pool or deactivate when is returned back
+void UPoolFactory_UObject::OnChangedStateInPool_Implementation(EPoolObjectState NewState, UObject* InObject)
+{
+	// Is optional callback if object implements interface
+	if (InObject && InObject->Implements<UPoolObjectCallback>())
+	{
+		IPoolObjectCallback::Execute_OnChangedStateInPool(InObject, NewState);
+	}
 }
