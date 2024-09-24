@@ -43,7 +43,7 @@ void UPoolFactory_UObject::RequestSpawn_Implementation(const FSpawnRequest& Requ
 	case ESpawnRequestPriority::Critical:
 		{
 			// Immediate processing for Critical priority requests
-			SpawnNow(Request);
+			ProcessRequestNow(Request);
 			// Exit since we don't add Critical requests to the queue
 			return;
 		}
@@ -91,6 +91,21 @@ bool UPoolFactory_UObject::DequeueSpawnRequest(FSpawnRequest& OutRequest)
 		bResult = OutRequest.IsValid();
 	}
 	return ensureAlwaysMsgf(bResult, TEXT("ASSERT: [%i] %hs:\nFailed to dequeue the spawn request, handle is '%s'!"), __LINE__, __FUNCTION__, *OutRequest.Handle.GetHash().ToString());
+}
+
+// Calls SpawnNow with the given request and process the callbacks
+void UPoolFactory_UObject::ProcessRequestNow(const FSpawnRequest& Request)
+{
+	UObject* CreatedObject = SpawnNow(Request);
+	checkf(CreatedObject, TEXT("ERROR: [%i] %hs:\n'CreatedObject' failed to spawn!"), __LINE__, __FUNCTION__);
+
+	FPoolObjectData ObjectData;
+	ObjectData.bIsActive = true;
+	ObjectData.PoolObject = CreatedObject;
+	ObjectData.Handle = Request.Handle;
+
+	OnPreRegistered(Request, ObjectData);
+	OnPostSpawned(Request, ObjectData);
 }
 
 // Alternative method to remove specific spawn request from the queue and returns it.
@@ -159,16 +174,7 @@ void UPoolFactory_UObject::OnNextTickProcessSpawn_Implementation()
 		FSpawnRequest OutRequest;
 		if (DequeueSpawnRequest(OutRequest))
 		{
-			UObject* CreatedObject = SpawnNow(OutRequest);
-			checkf(CreatedObject, TEXT("ERROR: [%i] %hs:\n'CreatedObject' is failed to spawn!"), __LINE__, __FUNCTION__);
-
-			FPoolObjectData ObjectData;
-			ObjectData.bIsActive = true;
-			ObjectData.PoolObject = CreatedObject;
-			ObjectData.Handle = OutRequest.Handle;
-
-			OnPreRegistered(OutRequest, ObjectData);
-			OnPostSpawned(OutRequest, ObjectData);
+			ProcessRequestNow(OutRequest);
 		}
 	}
 
