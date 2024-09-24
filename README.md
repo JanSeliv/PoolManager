@@ -1,4 +1,25 @@
-# 🔄 Pool Manager
+<a href="https://github.com/JanSeliv/PoolManager/blob/main/LICENSE">![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)</a>
+<a href="https://www.unrealengine.com/">![Unreal Engine](https://img.shields.io/badge/Unreal-5.4-dea309?style=flat&logo=unrealengine)
+</a>
+
+<br/>
+<p align="center">
+<a href="https://github.com/JanSeliv/PoolManager">
+<img src="https://github.com/JanSeliv/PoolManager/blob/main/Resources/Icon128.png?raw=true" alt="Logo" width="80" height="80">
+</a>
+<h3 align="center">🔄 Pool Manager</h3>
+<p align="center">
+Reuse any objects and actors to improve performance
+<br/>
+<br/>
+<a href="https://discord.gg/jbWgwDefnE"><strong>Join our Discord ››</strong></a>
+<br/>
+<a href="https://github.com/JanSeliv/PoolManager/releases">Releases</a>
+·
+<a href="https://docs.google.com/document/d/1YxbIdc9lZRl5ozI7_1LTBfdzJWTwhxwz2RKA-r0Q4po">Docs</a>
+</p>
+
+## 🌟 About
 
 The Pool Manager helps reuse objects that show up often, instead of creating and destroying them each time.
 
@@ -7,10 +28,6 @@ Creating and destroying objects, like projectiles or explosions, can be slow and
 The Pool Manager alleviates these problems by maintaining a pool of objects. Instead of creating and destroying objects all the time, the Pool Manager keeps these objects for reuse. This strategy improves the smoothness of the game.
 
 ![PoolManager](https://github.com/JanSeliv/PoolManager/assets/20540872/0af55b33-732c-435d-a5b3-2d7e36cdebf2)
-
-## 📚 Documentation
-
-Detailed documentation about the Pool Manager can be found [here](https://docs.google.com/document/d/1YxbIdc9lZRl5ozI7_1LTBfdzJWTwhxwz2RKA-r0Q4po).
 
 ## 🎓 Sample Projects
 
