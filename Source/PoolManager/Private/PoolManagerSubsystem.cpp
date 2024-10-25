@@ -555,6 +555,8 @@ void UPoolManagerSubsystem::EmptyPool_Implementation(const UClass* ObjectClass)
 	}
 
 	PoolObjects.Empty();
+
+	PoolsInternal.RemoveSwap(*Pool);
 }
 
 // Destroy all objects in all pools that are handled by the Pool Manager

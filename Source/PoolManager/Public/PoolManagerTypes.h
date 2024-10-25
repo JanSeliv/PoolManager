@@ -220,6 +220,9 @@ struct POOLMANAGER_API FPoolContainer
 
 	/** Returns true if the class is set for the Pool. */
 	FORCEINLINE bool IsValid() const { return ObjectClass != nullptr; }
+
+	/** Equal operator to find the pool */
+	FORCEINLINE bool operator==(const FPoolContainer& Other) const { return ObjectClass == Other.ObjectClass; }
 };
 
 typedef TFunction<void(const FPoolObjectData&)> FOnSpawnCallback;
