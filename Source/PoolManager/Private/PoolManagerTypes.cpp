@@ -99,10 +99,7 @@ FPoolContainer::FPoolContainer(const UClass* InClass)
 // Returns the pointer to the Pool element by specified object
 FPoolObjectData* FPoolContainer::FindInPool(const UObject& Object)
 {
-	return PoolObjects.FindByPredicate([&Object](const FPoolObjectData& It)
-	{
-		return It.PoolObject == &Object;
-	});
+	return PoolObjects.FindByKey(&Object);
 }
 
 // Returns the pointer to the Pool element by specified handle
@@ -113,10 +110,7 @@ FPoolObjectData* FPoolContainer::FindInPool(const FPoolObjectHandle& Handle)
 		return nullptr;
 	}
 
-	return PoolObjects.FindByPredicate([&Handle](const FPoolObjectData& PoolObjectIt)
-	{
-		return PoolObjectIt.Handle == Handle;
-	});
+	return PoolObjects.FindByKey(Handle);
 }
 
 // Returns factory or crashes as critical error if it is not set

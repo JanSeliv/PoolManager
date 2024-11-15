@@ -89,7 +89,7 @@ struct POOLMANAGER_API FPoolObjectHandle
 	void Invalidate() { *this = EmptyHandle; }
 
 	friend POOLMANAGER_API uint32 GetTypeHash(const FPoolObjectHandle& InHandle) { return GetTypeHash(InHandle.Hash); }
-	friend POOLMANAGER_API bool operator==(const FPoolObjectHandle& Lhs, const FPoolObjectHandle& Rhs) { return Lhs.Hash == Rhs.Hash; }
+	friend POOLMANAGER_API bool operator==(const FPoolObjectHandle& A, const FPoolObjectHandle& B) { return A.Hash == B.Hash; }
 
 	/*********************************************************************************************
 	 * Fields
@@ -176,6 +176,11 @@ struct POOLMANAGER_API FPoolObjectData
 
 	/** Element access. */
 	FORCEINLINE UObject* operator->() const { return PoolObject.Get(); }
+
+	/** Equal operator to find the pool object. */
+	friend POOLMANAGER_API bool operator==(const FPoolObjectData& A, const FPoolObjectData& B) { return A.Handle == B.Handle; }
+	friend POOLMANAGER_API bool operator==(const FPoolObjectData& A, const FPoolObjectHandle& B) { return A.Handle == B; }
+	friend POOLMANAGER_API bool operator==(const FPoolObjectData& A, const UObject* B) { return A.PoolObject == B; }
 };
 
 /**
@@ -222,7 +227,8 @@ struct POOLMANAGER_API FPoolContainer
 	FORCEINLINE bool IsValid() const { return ObjectClass != nullptr; }
 
 	/** Equal operator to find the pool */
-	FORCEINLINE bool operator==(const FPoolContainer& Other) const { return ObjectClass == Other.ObjectClass; }
+	friend POOLMANAGER_API bool operator==(const FPoolContainer& A, const FPoolContainer& B) { return A.ObjectClass == B.ObjectClass; }
+	friend POOLMANAGER_API bool operator==(const FPoolContainer& A, const UClass* B) { return A.ObjectClass == B; }
 };
 
 typedef TFunction<void(const FPoolObjectData&)> FOnSpawnCallback;

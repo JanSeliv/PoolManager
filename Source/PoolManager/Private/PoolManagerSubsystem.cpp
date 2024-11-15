@@ -537,14 +537,15 @@ void UPoolManagerSubsystem::ClearAllFactories()
 // Destroy all object of a pool by a given class
 void UPoolManagerSubsystem::EmptyPool_Implementation(const UClass* ObjectClass)
 {
-	FPoolContainer* Pool = FindPool(ObjectClass);
-	if (!ensureMsgf(Pool, TEXT("%hs: 'Pool' is not valid"), __FUNCTION__))
+	const int32 PoolIdx = ObjectClass ? PoolsInternal.IndexOfByKey(ObjectClass) : INDEX_NONE;
+	if (!ensureMsgf(PoolIdx != INDEX_NONE, TEXT("ASSERT: [%i] %hs:\n'ObjectClass' is not not contained in the pool!"), __LINE__, __FUNCTION__, *GetNameSafe(ObjectClass)))
 	{
 		return;
 	}
 
-	UPoolFactory_UObject& Factory = Pool->GetFactoryChecked();
-	TArray<FPoolObjectData>& PoolObjects = Pool->PoolObjects;
+	FPoolContainer& Pool = PoolsInternal[PoolIdx];
+	UPoolFactory_UObject& Factory = Pool.GetFactoryChecked();
+	TArray<FPoolObjectData>& PoolObjects = Pool.PoolObjects;
 	for (int32 Index = PoolObjects.Num() - 1; Index >= 0; --Index)
 	{
 		UObject* ObjectIt = PoolObjects.IsValidIndex(Index) ? PoolObjects[Index].Get() : nullptr;
@@ -556,7 +557,7 @@ void UPoolManagerSubsystem::EmptyPool_Implementation(const UClass* ObjectClass)
 
 	PoolObjects.Empty();
 
-	PoolsInternal.RemoveSwap(*Pool);
+	PoolsInternal.RemoveAtSwap(PoolIdx);
 }
 
 // Destroy all objects in all pools that are handled by the Pool Manager
@@ -795,10 +796,7 @@ FPoolContainer* UPoolManagerSubsystem::FindPool(const UClass* ObjectClass)
 		return nullptr;
 	}
 
-	return PoolsInternal.FindByPredicate([ObjectClass](const FPoolContainer& It)
-	{
-		return It.ObjectClass == ObjectClass;
-	});
+	return PoolsInternal.FindByKey(ObjectClass);
 }
 
 // Activates or deactivates the object if such object is handled by the Pool Manager
