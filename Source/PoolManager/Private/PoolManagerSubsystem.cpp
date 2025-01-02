@@ -2,9 +2,10 @@
 
 #include "PoolManagerSubsystem.h"
 //---
-#include "Factories/PoolFactory_UObject.h"
 #include "Data/PoolManagerSettings.h"
+#include "Factories/PoolFactory_UObject.h"
 //---
+#include "Engine/Engine.h"
 #include "Engine/World.h"
 //---
 #if WITH_EDITOR
@@ -52,7 +53,7 @@ UPoolManagerSubsystem* UPoolManagerSubsystem::GetPoolManagerByClass(TSubclassOf<
  ********************************************************************************************* */
 
 // Async version of TakeFromPool() that returns the object by specified class
-void UPoolManagerSubsystem::BPTakeFromPool(const UClass* ObjectClass, const FTransform& Transform, const FOnTakenFromPool& Completed)
+void UPoolManagerSubsystem::BPTakeFromPool(const UClass* ObjectClass, const FTransform& Transform, const FOnTakenFromPool& Completed, ESpawnRequestPriority Priority)
 {
 	const FPoolObjectData* ObjectData = TakeFromPoolOrNull(ObjectClass, Transform);
 	if (ObjectData)
@@ -64,6 +65,7 @@ void UPoolManagerSubsystem::BPTakeFromPool(const UClass* ObjectClass, const FTra
 
 	FSpawnRequest Request(ObjectClass);
 	Request.Transform = Transform;
+	Request.Priority = Priority;
 	Request.Callbacks.OnPostSpawned = [Completed](const FPoolObjectData& It)
 	{
 		Completed.ExecuteIfBound(It.PoolObject);
@@ -72,7 +74,7 @@ void UPoolManagerSubsystem::BPTakeFromPool(const UClass* ObjectClass, const FTra
 }
 
 // Is code async version of TakeFromPool() that calls callback functions when the object is ready
-FPoolObjectHandle UPoolManagerSubsystem::TakeFromPool(const UClass* ObjectClass, const FTransform& Transform/* = FTransform::Identity*/, const FOnSpawnCallback& Completed/* = nullptr*/)
+FPoolObjectHandle UPoolManagerSubsystem::TakeFromPool(const UClass* ObjectClass, const FTransform& Transform/* = FTransform::Identity*/, const FOnSpawnCallback& Completed/* = nullptr*/, ESpawnRequestPriority Priority/* = ESpawnRequestPriority::Normal*/)
 {
 	const FPoolObjectData* ObjectData = TakeFromPoolOrNull(ObjectClass, Transform);
 	if (ObjectData)
@@ -87,6 +89,7 @@ FPoolObjectHandle UPoolManagerSubsystem::TakeFromPool(const UClass* ObjectClass,
 
 	FSpawnRequest Request(ObjectClass);
 	Request.Transform = Transform;
+	Request.Priority = Priority;
 	Request.Callbacks.OnPostSpawned = Completed;
 	return CreateNewObjectInPool(Request);
 }
@@ -138,7 +141,7 @@ const FPoolObjectData* UPoolManagerSubsystem::TakeFromPoolOrNull(const UClass* O
  ********************************************************************************************* */
 
 // Is the same as BPTakeFromPool() but for multiple objects
-void UPoolManagerSubsystem::BPTakeFromPoolArray(const UClass* ObjectClass, int32 Amount, const FOnTakenFromPoolArray& Completed)
+void UPoolManagerSubsystem::BPTakeFromPoolArray(const UClass* ObjectClass, int32 Amount, const FOnTakenFromPoolArray& Completed, ESpawnRequestPriority Priority)
 {
 	if (!ensureMsgf(ObjectClass, TEXT("ASSERT: [%i] %hs:\n'ObjectClass' is not specified!"), __LINE__, __FUNCTION__))
 	{
@@ -147,7 +150,7 @@ void UPoolManagerSubsystem::BPTakeFromPoolArray(const UClass* ObjectClass, int32
 
 	// --- Take if free objects in pool first
 	TArray<FSpawnRequest> InRequests;
-	FSpawnRequest::MakeRequests(/*out*/InRequests, ObjectClass, Amount);
+	FSpawnRequest::MakeRequests(/*out*/InRequests, ObjectClass, Amount, Priority);
 	TArray<FPoolObjectData> FreeObjectsData;
 	TakeFromPoolArrayOrNull(/*out*/FreeObjectsData, InRequests);
 
@@ -174,15 +177,16 @@ void UPoolManagerSubsystem::BPTakeFromPoolArray(const UClass* ObjectClass, int32
 }
 
 // Is code-overridable alternative version of BPTakeFromPoolArray() that calls callback functions when all objects of the same class are ready
-void UPoolManagerSubsystem::TakeFromPoolArray(TArray<FPoolObjectHandle>& OutHandles, const UClass* ObjectClass, int32 Amount, const FOnSpawnAllCallback& Completed)
+void UPoolManagerSubsystem::TakeFromPoolArray(TArray<FPoolObjectHandle>& OutHandles, const UClass* ObjectClass, int32 Amount, const FOnSpawnAllCallback& Completed, ESpawnRequestPriority Priority/* = ESpawnRequestPriority::Normal*/)
 {
-	if (!ensureMsgf(ObjectClass, TEXT("ASSERT: [%i] %hs:\n'ObjectClass' is not specified!"), __LINE__, __FUNCTION__))
+	if (!ensureMsgf(ObjectClass, TEXT("ASSERT: [%i] %hs:\n'ObjectClass' is not specified!"), __LINE__, __FUNCTION__)
+		|| !ensureMsgf(Amount > 0, TEXT("ASSERT: [%i] %hs:\n'Amount' is less than 1!"), __LINE__, __FUNCTION__))
 	{
 		return;
 	}
 
 	TArray<FSpawnRequest> InRequests;
-	FSpawnRequest::MakeRequests(/*out*/InRequests, ObjectClass, Amount);
+	FSpawnRequest::MakeRequests(/*out*/InRequests, ObjectClass, Amount, Priority);
 	TArray<FPoolObjectData> FreeObjectsData;
 	TakeFromPoolArrayOrNull(/*out*/FreeObjectsData, InRequests);
 	FPoolObjectHandle::Conv_ObjectsToHandles(OutHandles, FreeObjectsData);
@@ -533,14 +537,15 @@ void UPoolManagerSubsystem::ClearAllFactories()
 // Destroy all object of a pool by a given class
 void UPoolManagerSubsystem::EmptyPool_Implementation(const UClass* ObjectClass)
 {
-	FPoolContainer* Pool = FindPool(ObjectClass);
-	if (!ensureMsgf(Pool, TEXT("%hs: 'Pool' is not valid"), __FUNCTION__))
+	const int32 PoolIdx = ObjectClass ? PoolsInternal.IndexOfByKey(ObjectClass) : INDEX_NONE;
+	if (!ensureMsgf(PoolIdx != INDEX_NONE, TEXT("ASSERT: [%i] %hs:\n'ObjectClass' is not not contained in the pool!"), __LINE__, __FUNCTION__, *GetNameSafe(ObjectClass)))
 	{
 		return;
 	}
 
-	UPoolFactory_UObject& Factory = Pool->GetFactoryChecked();
-	TArray<FPoolObjectData>& PoolObjects = Pool->PoolObjects;
+	FPoolContainer& Pool = PoolsInternal[PoolIdx];
+	UPoolFactory_UObject& Factory = Pool.GetFactoryChecked();
+	TArray<FPoolObjectData>& PoolObjects = Pool.PoolObjects;
 	for (int32 Index = PoolObjects.Num() - 1; Index >= 0; --Index)
 	{
 		UObject* ObjectIt = PoolObjects.IsValidIndex(Index) ? PoolObjects[Index].Get() : nullptr;
@@ -551,6 +556,8 @@ void UPoolManagerSubsystem::EmptyPool_Implementation(const UClass* ObjectClass)
 	}
 
 	PoolObjects.Empty();
+
+	PoolsInternal.RemoveAtSwap(PoolIdx);
 }
 
 // Destroy all objects in all pools that are handled by the Pool Manager
@@ -789,10 +796,7 @@ FPoolContainer* UPoolManagerSubsystem::FindPool(const UClass* ObjectClass)
 		return nullptr;
 	}
 
-	return PoolsInternal.FindByPredicate([ObjectClass](const FPoolContainer& It)
-	{
-		return It.ObjectClass == ObjectClass;
-	});
+	return PoolsInternal.FindByKey(ObjectClass);
 }
 
 // Activates or deactivates the object if such object is handled by the Pool Manager

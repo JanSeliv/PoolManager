@@ -51,6 +51,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Pool Factory")
 	virtual bool DequeueSpawnRequest(FSpawnRequest& OutRequest);
 
+	/** Calls SpawnNow with the given request and process the callbacks. */
+	UFUNCTION(BlueprintCallable, Category = "Pool Factory")
+	void ProcessRequestNow(const FSpawnRequest& Request);
+
 	/** Method to immediately spawn requested object.
 	 * Is called after 'DequeueSpawnRequest'. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Factory", meta = (AutoCreateRefTerm = "Request"))
@@ -97,23 +101,23 @@ public:
 	/** Is called right before taking the object from its pool. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Factory", meta = (AutoCreateRefTerm = "Transform"))
 	void OnTakeFromPool(UObject* Object, const FTransform& Transform);
-	virtual void OnTakeFromPool_Implementation(UObject* Object, const FTransform& Transform) {}
+	virtual void OnTakeFromPool_Implementation(UObject* Object, const FTransform& Transform);
 
 	/** Is called right before returning the object back to its pool. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Factory")
 	void OnReturnToPool(UObject* Object);
-	virtual void OnReturnToPool_Implementation(UObject* Object) {}
+	virtual void OnReturnToPool_Implementation(UObject* Object);
 
 	/** Is called when activates the object to take it from pool or deactivate when is returned back. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Factory")
 	void OnChangedStateInPool(EPoolObjectState NewState, UObject* InObject);
-	virtual void OnChangedStateInPool_Implementation(EPoolObjectState NewState, UObject* InObject) {}
+	virtual void OnChangedStateInPool_Implementation(EPoolObjectState NewState, UObject* InObject);
 
 	/*********************************************************************************************
 	 * Data
 	 ********************************************************************************************* */
 protected:
 	/** All request to spawn. */
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, Transient, Category = "Pool Factory", meta = (BlueprintProtected, DisplayName = "Spawn Queue"))
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, Transient, AdvancedDisplay, Category = "Pool Factory", meta = (BlueprintProtected, DisplayName = "Spawn Queue"))
 	TArray<FSpawnRequest> SpawnQueueInternal;
 };

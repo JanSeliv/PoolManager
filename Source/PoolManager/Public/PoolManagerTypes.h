@@ -23,6 +23,24 @@ enum class EPoolObjectState : uint8
 	Active
 };
 
+/**
+ * Priority that affects the order of processing requests.
+ * Higher priority requests are processed first.
+ */
+UENUM(BlueprintType)
+enum class ESpawnRequestPriority : uint8
+{
+	None UMETA(Hidden),
+	///< Adds to the end of the queue, good for most situations
+	Normal,
+	///< Request will be handled after all High requests, but before Normal, which increases processing speed
+	Medium,
+	///< Guarantees that the new request will be added to the beginning of the queue for next-frame processing; useful for urgent activations, especially when it is very important to have no delay, but other requests will be delayed
+	High,
+	///< Immediately handles the request in the current frame, without adding it to a queue; should not be used in bulk requests as this request is handled synchronously, which might cause a CPU freeze if called too many times
+	Critical,
+};
+
 struct FSpawnRequest;
 struct FPoolObjectData;
 
@@ -71,7 +89,7 @@ struct POOLMANAGER_API FPoolObjectHandle
 	void Invalidate() { *this = EmptyHandle; }
 
 	friend POOLMANAGER_API uint32 GetTypeHash(const FPoolObjectHandle& InHandle) { return GetTypeHash(InHandle.Hash); }
-	friend POOLMANAGER_API bool operator==(const FPoolObjectHandle& Lhs, const FPoolObjectHandle& Rhs) { return Lhs.Hash == Rhs.Hash; }
+	friend POOLMANAGER_API bool operator==(const FPoolObjectHandle& A, const FPoolObjectHandle& B) { return A.Hash == B.Hash; }
 
 	/*********************************************************************************************
 	 * Fields
@@ -158,6 +176,11 @@ struct POOLMANAGER_API FPoolObjectData
 
 	/** Element access. */
 	FORCEINLINE UObject* operator->() const { return PoolObject.Get(); }
+
+	/** Equal operator to find the pool object. */
+	friend POOLMANAGER_API bool operator==(const FPoolObjectData& A, const FPoolObjectData& B) { return A.Handle == B.Handle; }
+	friend POOLMANAGER_API bool operator==(const FPoolObjectData& A, const FPoolObjectHandle& B) { return A.Handle == B; }
+	friend POOLMANAGER_API bool operator==(const FPoolObjectData& A, const UObject* B) { return A.PoolObject == B; }
 };
 
 /**
@@ -202,6 +225,10 @@ struct POOLMANAGER_API FPoolContainer
 
 	/** Returns true if the class is set for the Pool. */
 	FORCEINLINE bool IsValid() const { return ObjectClass != nullptr; }
+
+	/** Equal operator to find the pool */
+	friend POOLMANAGER_API bool operator==(const FPoolContainer& A, const FPoolContainer& B) { return A.ObjectClass == B.ObjectClass; }
+	friend POOLMANAGER_API bool operator==(const FPoolContainer& A, const UClass* B) { return A.ObjectClass == B; }
 };
 
 typedef TFunction<void(const FPoolObjectData&)> FOnSpawnCallback;
@@ -234,7 +261,7 @@ struct POOLMANAGER_API FSpawnRequest
 	explicit FSpawnRequest(const UClass* InClass);
 
 	/** Returns array of spawn requests by specified class and their amount. */
-	static void MakeRequests(TArray<FSpawnRequest>& OutRequests, const UClass* InClass, int32 Amount);
+	static void MakeRequests(TArray<FSpawnRequest>& OutRequests, const UClass* InClass, int32 Amount, ESpawnRequestPriority Priority);
 
 	/** Leave only those requests that are not in the list of free objects. */
 	static void FilterRequests(TArray<FSpawnRequest>& InOutRequests, const TArray<FPoolObjectData>& FreeObjectsData, int32 ExpectedAmount = INDEX_NONE);
@@ -242,6 +269,10 @@ struct POOLMANAGER_API FSpawnRequest
 	/** Transform of the object to spawn. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient)
 	FTransform Transform = FTransform::Identity;
+
+	/** Priority of the spawn request in the queue, higher priority object is spawned first. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient)
+	ESpawnRequestPriority Priority = ESpawnRequestPriority::Normal;
 
 	/** The handle associated with spawning pool object for management within the Pool Manager system.
 	 * Is generated automatically if not set. */
