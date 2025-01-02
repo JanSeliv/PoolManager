@@ -2,6 +2,7 @@
 
 #include "Factories/PoolFactory_UObject.h"
 //---
+#include "PoolObjectCallback.h"
 #include "Data/PoolManagerSettings.h"
 //---
 #include "TimerManager.h"
@@ -21,8 +22,49 @@ void UPoolFactory_UObject::RequestSpawn_Implementation(const FSpawnRequest& Requ
 		return;
 	}
 
-	// Add request to queue
-	SpawnQueueInternal.Emplace(Request);
+	// Lambda to find the correct insertion index based on priority
+	auto FindInsertionIndex = [&](ESpawnRequestPriority Priority)
+	{
+		int32 InsertIdx = 0;
+		for (int32 Index = 0; Index < SpawnQueueInternal.Num(); ++Index)
+		{
+			if (SpawnQueueInternal[Index].Priority < Priority)
+			{
+				break;
+			}
+			InsertIdx = Index + 1;
+		}
+		return InsertIdx;
+	};
+
+	// Insert request based on priority
+	switch (Request.Priority)
+	{
+	case ESpawnRequestPriority::Critical:
+		{
+			// Immediate processing for Critical priority requests
+			ProcessRequestNow(Request);
+			// Exit since we don't add Critical requests to the queue
+			return;
+		}
+
+	case ESpawnRequestPriority::High: // Fall-through
+	case ESpawnRequestPriority::Medium:
+		{
+			// Use lambda to find the correct insertion index based on the priority
+			const int32 InsertIdx = FindInsertionIndex(Request.Priority);
+			SpawnQueueInternal.Insert(Request, InsertIdx);
+		}
+		break;
+
+	case ESpawnRequestPriority::Normal:
+		// Normal, add to the end of the queue
+		SpawnQueueInternal.Emplace(Request);
+		break;
+
+	default:
+		ensureAlwaysMsgf(false, TEXT("ASSERT: [%i] %hs:\n'Priority' is not valid: %d"), __LINE__, __FUNCTION__, static_cast<int32>(Request.Priority));
+	}
 
 	// If this is the first object in the queue, schedule the OnNextTickProcessSpawn to be called on the next frame
 	// Creating UObjects on separate threads is not thread-safe and leads to problems with garbage collection,
@@ -49,6 +91,21 @@ bool UPoolFactory_UObject::DequeueSpawnRequest(FSpawnRequest& OutRequest)
 		bResult = OutRequest.IsValid();
 	}
 	return ensureAlwaysMsgf(bResult, TEXT("ASSERT: [%i] %hs:\nFailed to dequeue the spawn request, handle is '%s'!"), __LINE__, __FUNCTION__, *OutRequest.Handle.GetHash().ToString());
+}
+
+// Calls SpawnNow with the given request and process the callbacks
+void UPoolFactory_UObject::ProcessRequestNow(const FSpawnRequest& Request)
+{
+	UObject* CreatedObject = SpawnNow(Request);
+	checkf(CreatedObject, TEXT("ERROR: [%i] %hs:\n'CreatedObject' failed to spawn!"), __LINE__, __FUNCTION__);
+
+	FPoolObjectData ObjectData;
+	ObjectData.bIsActive = true;
+	ObjectData.PoolObject = CreatedObject;
+	ObjectData.Handle = Request.Handle;
+
+	OnPreRegistered(Request, ObjectData);
+	OnPostSpawned(Request, ObjectData);
 }
 
 // Alternative method to remove specific spawn request from the queue and returns it.
@@ -93,6 +150,13 @@ void UPoolFactory_UObject::OnPostSpawned(const FSpawnRequest& Request, const FPo
 	{
 		Request.Callbacks.OnPostSpawned(ObjectData);
 	}
+
+	// Is optional callback if object implements interface
+	if (ObjectData && ObjectData->Implements<UPoolObjectCallback>())
+	{
+		constexpr bool bIsNewSpawned = true;
+		IPoolObjectCallback::Execute_OnTakeFromPool(ObjectData.Get(), bIsNewSpawned, Request.Transform);
+	}
 }
 
 // Is called on next frame to process a chunk of the spawn queue
@@ -110,16 +174,7 @@ void UPoolFactory_UObject::OnNextTickProcessSpawn_Implementation()
 		FSpawnRequest OutRequest;
 		if (DequeueSpawnRequest(OutRequest))
 		{
-			UObject* CreatedObject = SpawnNow(OutRequest);
-			checkf(CreatedObject, TEXT("ERROR: [%i] %hs:\n'CreatedObject' is failed to spawn!"), __LINE__, __FUNCTION__);
-
-			FPoolObjectData ObjectData;
-			ObjectData.bIsActive = true;
-			ObjectData.PoolObject = CreatedObject;
-			ObjectData.Handle = OutRequest.Handle;
-
-			OnPreRegistered(OutRequest, ObjectData);
-			OnPostSpawned(OutRequest, ObjectData);
+			ProcessRequestNow(OutRequest);
 		}
 	}
 
@@ -142,4 +197,39 @@ void UPoolFactory_UObject::Destroy_Implementation(UObject* Object)
 {
 	checkf(IsValid(Object), TEXT("ERROR: [%i] %hs:\n'IsValid(Object)' is not valid!"), __LINE__, __FUNCTION__);
 	Object->ConditionalBeginDestroy();
+}
+
+/*********************************************************************************************
+ * Pool
+ ********************************************************************************************* */
+
+// Is called right before taking the object from its pool
+void UPoolFactory_UObject::OnTakeFromPool_Implementation(UObject* Object, const FTransform& Transform)
+{
+	// Is optional callback if object implements interface
+	if (Object && Object->Implements<UPoolObjectCallback>())
+	{
+		constexpr bool bIsNewSpawned = false;
+		IPoolObjectCallback::Execute_OnTakeFromPool(Object, bIsNewSpawned, Transform);
+	}
+}
+
+// Is called right before returning the object back to its pool
+void UPoolFactory_UObject::OnReturnToPool_Implementation(UObject* Object)
+{
+	// Is optional callback if object implements interface
+	if (Object && Object->Implements<UPoolObjectCallback>())
+	{
+		IPoolObjectCallback::Execute_OnReturnToPool(Object);
+	}
+}
+
+// Is called when activates the object to take it from pool or deactivate when is returned back
+void UPoolFactory_UObject::OnChangedStateInPool_Implementation(EPoolObjectState NewState, UObject* InObject)
+{
+	// Is optional callback if object implements interface
+	if (InObject && InObject->Implements<UPoolObjectCallback>())
+	{
+		IPoolObjectCallback::Execute_OnChangedStateInPool(InObject, NewState);
+	}
 }

@@ -17,6 +17,35 @@
 
 #define LOCTEXT_NAMESPACE "K2Node_TakeFromPoolBase"
 
+// Base method to connect additional pins created in child classes
+bool UK2Node_TakeFromPoolBase::PostExpandNode(FKismetCompilerContext& CompilerContext, UEdGraph& SourceGraph, class UK2Node_CallFunction& CallTakeFromPoolNode)
+{
+	bool bIsErrorFree = true;
+
+	// Connect the priority input
+	UEdGraphPin* CallPriorityPin = CallTakeFromPoolNode.FindPin(GetPriorityPinName());
+	UEdGraphPin* PriorityPin = FindPin(GetPriorityPinName());
+	if (PriorityPin && CallPriorityPin)
+	{
+		if (PriorityPin->LinkedTo.Num() > 0)
+		{
+			bIsErrorFree &= CompilerContext.MovePinLinksToIntermediate(*PriorityPin, *CallPriorityPin).CanSafeConnect();
+		}
+		else
+		{
+			// Copy literal value
+			CallPriorityPin->DefaultValue = PriorityPin->DefaultValue;
+			CallPriorityPin->DefaultObject = PriorityPin->DefaultObject;
+		}
+	}
+	else
+	{
+		bIsErrorFree = false;
+	}
+
+	return bIsErrorFree;
+}
+
 void UK2Node_TakeFromPoolBase::AllocateDefaultPins()
 {
 	CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Execute);
@@ -28,6 +57,10 @@ void UK2Node_TakeFromPoolBase::AllocateDefaultPins()
 	TargetPin->bDefaultValueIsIgnored = true;
 
 	CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Class, UObject::StaticClass(), GetClassInputPinName());
+
+	UEnum* PriorityEnum = FindObjectChecked<UEnum>(nullptr, TEXT("/Script/PoolManager.ESpawnRequestPriority"));
+	UEdGraphPin* PriorityPin = CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Byte, PriorityEnum, GetPriorityPinName());
+	PriorityPin->DefaultValue = PriorityEnum->GetNameStringByValue(static_cast<int64>(ESpawnRequestPriority::Normal));
 
 	CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Object, UObject::StaticClass(), GetReturnValuePinName(), GetReturnValuePinParams());
 }

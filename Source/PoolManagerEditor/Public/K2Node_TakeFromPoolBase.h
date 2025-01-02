@@ -19,6 +19,7 @@ public:
 	virtual FORCEINLINE FName GetReturnValuePinName() { return TEXT("Output"); }
 	virtual FORCEINLINE FName GetClassInputPinName() { return TEXT("ObjectClass"); }
 	virtual FORCEINLINE FName GetCompletedPinName() { return TEXT("Completed"); }
+	virtual FORCEINLINE FName GetPriorityPinName() { return TEXT("Priority"); }
 
 	/** Base method to get output pin params. */
 	virtual FCreatePinParams GetReturnValuePinParams() const { return FCreatePinParams(); }
@@ -27,7 +28,7 @@ public:
 	virtual FName GetNativeFunctionName() const PURE_VIRTUAL(UK2Node_TakeFromPoolBase::NativeFunctionName, return NAME_None;);
 
 	/** Base method to connect additional pins created in child classes. */
-	virtual bool PostExpandNode(FKismetCompilerContext& CompilerContext, UEdGraph& SourceGraph, class UK2Node_CallFunction& CallTakeFromPoolNode) { return true; }
+	virtual bool PostExpandNode(FKismetCompilerContext& CompilerContext, UEdGraph& SourceGraph, class UK2Node_CallFunction& CallTakeFromPoolNode);
 
 	// UEdGraphNode interface
 	virtual void AllocateDefaultPins() override;

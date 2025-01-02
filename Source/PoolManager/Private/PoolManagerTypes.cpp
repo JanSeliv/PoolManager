@@ -99,10 +99,7 @@ FPoolContainer::FPoolContainer(const UClass* InClass)
 // Returns the pointer to the Pool element by specified object
 FPoolObjectData* FPoolContainer::FindInPool(const UObject& Object)
 {
-	return PoolObjects.FindByPredicate([&Object](const FPoolObjectData& It)
-	{
-		return It.PoolObject == &Object;
-	});
+	return PoolObjects.FindByKey(&Object);
 }
 
 // Returns the pointer to the Pool element by specified handle
@@ -113,10 +110,7 @@ FPoolObjectData* FPoolContainer::FindInPool(const FPoolObjectHandle& Handle)
 		return nullptr;
 	}
 
-	return PoolObjects.FindByPredicate([&Handle](const FPoolObjectData& PoolObjectIt)
-	{
-		return PoolObjectIt.Handle == Handle;
-	});
+	return PoolObjects.FindByKey(Handle);
 }
 
 // Returns factory or crashes as critical error if it is not set
@@ -131,7 +125,7 @@ FSpawnRequest::FSpawnRequest(const UClass* InClass)
 	: Handle(InClass) {}
 
 // Returns array of spawn requests by specified class and their amount
-void FSpawnRequest::MakeRequests(TArray<FSpawnRequest>& OutRequests, const UClass* InClass, int32 Amount)
+void FSpawnRequest::MakeRequests(TArray<FSpawnRequest>& OutRequests, const UClass* InClass, int32 Amount, ESpawnRequestPriority Priority)
 {
 	if (!OutRequests.IsEmpty())
 	{
@@ -140,7 +134,9 @@ void FSpawnRequest::MakeRequests(TArray<FSpawnRequest>& OutRequests, const UClas
 
 	for (int32 Index = 0; Index < Amount; ++Index)
 	{
-		OutRequests.Emplace(InClass);
+		FSpawnRequest Request(InClass);
+		Request.Priority = Priority;
+		OutRequests.Emplace(MoveTemp(Request));
 	}
 }
 
