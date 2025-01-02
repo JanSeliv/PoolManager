@@ -1,5 +1,5 @@
 <a href="https://github.com/JanSeliv/PoolManager/blob/main/LICENSE">![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)</a>
-<a href="https://www.unrealengine.com/">![Unreal Engine](https://img.shields.io/badge/Unreal-5.4-dea309?style=flat&logo=unrealengine)
+<a href="https://www.unrealengine.com/">![Unreal Engine](https://img.shields.io/badge/Unreal-5.5-dea309?style=flat&logo=unrealengine)
 </a>
 
 <br/>
@@ -38,9 +38,9 @@ Also, explore this [game project repository](https://github.com/JanSeliv/Bomber)
 ## 📅 Changelog
 #### 2025-01-01
 - Updated to **Unreal Engine 5.5**.
-- Implemented **Priorities** to process important objects faster than others:
+- Implemented **[Priorities](https://docs.google.com/document/d/1YxbIdc9lZRl5ozI7_1LTBfdzJWTwhxwz2RKA-r0Q4po/edit?tab=t.0#heading=h.72e3golkh2jm)** to process important objects faster than others:
 >![Priorities](https://github.com/user-attachments/assets/3a0501f6-28ed-4bc9-8f06-93bf95385625)
-- Implemented **Pool Object Callback** interface by [Bigotry0](https://github.com/Bigotry0) to notify objects when they are taken from or returned:
+- Implemented **[Pool Object Callback interface](https://docs.google.com/document/d/1YxbIdc9lZRl5ozI7_1LTBfdzJWTwhxwz2RKA-r0Q4po/edit?tab=t.0#heading=h.re9d8tpdk6q1)** by [Bigotry0](https://github.com/Bigotry0) to notify objects when they are taken from or returned:
 >![Interface](https://github.com/user-attachments/assets/8cd05e9b-3877-43ed-9285-50a56641132f)
 #### 2024-05-05
 - Updated to **Unreal Engine 5.4**.
@@ -62,7 +62,7 @@ Feedback and contributions from the community are highly appreciated!
 
 If you'd like to contribute, please fork the project and create a pull request targeting the `develop` branch.
 
-If you've found a bug or have an idea for a new feature, please open a new issue on GitHub. Thank you!
+If you've found a bug or have an idea for a new feature, please open a new issue on GitHub or join our [Discord](https://discord.gg/jbWgwDefnE). Thank you!
 
 ## 📜 License
 
