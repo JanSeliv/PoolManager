@@ -1,5 +1,5 @@
 <a href="https://github.com/JanSeliv/PoolManager/blob/main/LICENSE">![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)</a>
-<a href="https://www.unrealengine.com/">![Unreal Engine](https://img.shields.io/badge/Unreal-5.5-dea309?style=flat&logo=unrealengine)
+<a href="https://www.unrealengine.com/">![Unreal Engine](https://img.shields.io/badge/Unreal-5.6-dea309?style=flat&logo=unrealengine)
 </a>
 
 <br/>
@@ -31,11 +31,13 @@ The Pool Manager alleviates these problems by maintaining a pool of objects. Ins
 
 ## 🎓 Sample Projects
 
-Check out our [Release](https://github.com/JanSeliv/PoolManager/releases) page for two sample projects showcasing the Pool Manager, one with blueprints and another in C++.
+Check out our [Release](https://github.com/JanSeliv/PoolManager/releases) page for the sample project showcasing the Pool Manager in both blueprints (widgets pooling) and C++ (boxes pooling).
 
 Also, explore this [game project repository](https://github.com/JanSeliv/Bomber) to view the Pool Manager in action.
 
 ## 📅 Changelog
+#### 2025-11-17
+- Updated to **Unreal Engine 5.6**.
 #### 2025-01-01
 - Updated to **Unreal Engine 5.5**.
 - Implemented **[Priorities](https://docs.google.com/document/d/1YxbIdc9lZRl5ozI7_1LTBfdzJWTwhxwz2RKA-r0Q4po/edit?tab=t.0#heading=h.72e3golkh2jm)** to process important objects faster than others:
