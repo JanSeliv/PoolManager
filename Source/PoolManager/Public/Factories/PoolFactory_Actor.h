@@ -17,6 +17,10 @@ class POOLMANAGER_API UPoolFactory_Actor : public UPoolFactory_UObject
 {
 	GENERATED_BODY()
 
+public:
+	/** It is farthest possible location where deactivated actors are placed, is the same as UWorldLocationsConfig::MaxPos for the Iris replication support. */
+	inline static const FVector MaxPos = {+0.5f * 2097152.0f, +0.5f * 2097152.0f, +0.5f * 2097152.0f};
+
 	/*********************************************************************************************
 	 * Setup overrides
 	 ********************************************************************************************* */

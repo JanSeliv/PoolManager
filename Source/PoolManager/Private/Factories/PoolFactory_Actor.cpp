@@ -7,9 +7,6 @@
 //---
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PoolFactory_Actor)
 
-// It's almost farthest possible location where deactivated actors are placed
-#define VECTOR_HALF_WORLD_MAX FVector(HALF_WORLD_MAX - HALF_WORLD_MAX * THRESH_VECTOR_NORMALIZED)
-
 // Is overridden to handle Actors-inherited classes
 const UClass* UPoolFactory_Actor::GetObjectClass_Implementation() const
 {
@@ -83,7 +80,7 @@ void UPoolFactory_Actor::OnReturnToPool_Implementation(UObject* Object)
 
 	// SetCollisionEnabled is not replicated, client collides with hidden actor, so move it far away
 	AActor* Actor = CastChecked<AActor>(Object);
-	Actor->SetActorLocation(VECTOR_HALF_WORLD_MAX);
+	Actor->SetActorLocation(MaxPos);
 }
 
 // Is overridden to change visibility, collision, ticking, etc. according new state
