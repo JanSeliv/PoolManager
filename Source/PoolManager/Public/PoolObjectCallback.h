@@ -24,12 +24,11 @@ class POOLMANAGER_API IPoolObjectCallback
 public:
 	/**
 	 * Called when the object is taken from the pool.If IsNewSpawned is true, the object is newly spawned.
-	 * @param bIsNewSpawned If true, the object is newly spawned.
-	 * @param Transform The transform of the object.
+	 * @param Payload The payload data when taking an object from the pool.
 	 */
-	UFUNCTION(BlueprintNativeEvent, Category = "PoolManager", meta = (AutoCreateRefTerm = "Transform"))
-	void OnTakeFromPool(bool bIsNewSpawned, const FTransform& Transform);
-	virtual void OnTakeFromPool_Implementation(bool bIsNewSpawned, const FTransform& Transform) {}
+	UFUNCTION(BlueprintNativeEvent, Category = "PoolManager", meta = (AutoCreateRefTerm = "Payload"))
+	void OnTakeFromPool(const struct FTakeFromPoolPayload& Payload);
+	virtual void OnTakeFromPool_Implementation(const FTakeFromPoolPayload& Payload) {}
 
 	/**
 	 * Called when the object is returned to the pool.

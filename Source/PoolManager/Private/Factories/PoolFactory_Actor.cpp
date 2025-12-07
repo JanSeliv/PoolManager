@@ -65,12 +65,12 @@ void UPoolFactory_Actor::Destroy_Implementation(UObject* Object)
  ********************************************************************************************* */
 
 // Is overridden to set transform to the actor before taking the object from its pool
-void UPoolFactory_Actor::OnTakeFromPool_Implementation(UObject* Object, const FTransform& Transform)
+void UPoolFactory_Actor::OnTakeFromPool_Implementation(UObject* Object, const FTakeFromPoolPayload& Payload)
 {
-	Super::OnTakeFromPool_Implementation(Object, Transform);
+	Super::OnTakeFromPool_Implementation(Object, Payload);
 
 	AActor* Actor = CastChecked<AActor>(Object);
-	Actor->SetActorTransform(Transform);
+	Actor->SetActorTransform(Payload.Transform);
 }
 
 // Is overridden to reset transform to the actor before returning the object to its pool

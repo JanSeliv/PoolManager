@@ -292,3 +292,20 @@ struct POOLMANAGER_API FSpawnRequest
 	template <typename T = UObject>
 	FORCEINLINE TNonNullSubclassOf<T> GetClassChecked() const { return TNonNullSubclassOf<T>(const_cast<UClass*>(Handle.GetObjectClass())); }
 };
+
+/**
+ * Contains the payload data when taking an object from the pool.
+ */
+USTRUCT(BlueprintType)
+struct FTakeFromPoolPayload
+{
+	GENERATED_BODY()
+
+	/** Transform of the object to take from pool. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient)
+	FTransform Transform = FTransform::Identity;
+
+	/** Is true whenever the object is newly spawned instead of taken from existing pool. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient)
+	bool bIsNewSpawned = false;
+};

@@ -50,7 +50,7 @@ public:
 	 ********************************************************************************************* */
 public:
 	/** Is overridden to set transform to the actor before taking the object from its pool. */
-	virtual void OnTakeFromPool_Implementation(UObject* Object, const FTransform& Transform) override;
+	virtual void OnTakeFromPool_Implementation(UObject* Object, const FTakeFromPoolPayload& Payload) override;
 
 	/** Is overridden to reset transform to the actor before returning the object to its pool. */
 	virtual void OnReturnToPool_Implementation(UObject* Object) override;

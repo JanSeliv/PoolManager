@@ -129,7 +129,10 @@ const FPoolObjectData* UPoolManagerSubsystem::TakeFromPoolOrNull(const UClass* O
 
 	UObject& InObject = FoundData->GetChecked();
 
-	Pool->GetFactoryChecked().OnTakeFromPool(&InObject, Transform);
+	FTakeFromPoolPayload Payload;
+	Payload.bIsNewSpawned = false;
+	Payload.Transform = Transform;
+	Pool->GetFactoryChecked().OnTakeFromPool(&InObject, Payload);
 
 	SetObjectStateInPool(EPoolObjectState::Active, InObject, *Pool);
 

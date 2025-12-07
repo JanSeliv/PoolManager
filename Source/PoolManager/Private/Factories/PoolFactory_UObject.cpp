@@ -151,12 +151,10 @@ void UPoolFactory_UObject::OnPostSpawned(const FSpawnRequest& Request, const FPo
 		Request.Callbacks.OnPostSpawned(ObjectData);
 	}
 
-	// Is optional callback if object implements interface
-	if (ObjectData && ObjectData->Implements<UPoolObjectCallback>())
-	{
-		constexpr bool bIsNewSpawned = true;
-		IPoolObjectCallback::Execute_OnTakeFromPool(ObjectData.Get(), bIsNewSpawned, Request.Transform);
-	}
+	FTakeFromPoolPayload Payload;
+	Payload.bIsNewSpawned = true;
+	Payload.Transform = Request.Transform;
+	OnTakeFromPool(ObjectData.Get(), Payload);
 }
 
 // Is called on next frame to process a chunk of the spawn queue
@@ -204,13 +202,12 @@ void UPoolFactory_UObject::Destroy_Implementation(UObject* Object)
  ********************************************************************************************* */
 
 // Is called right before taking the object from its pool
-void UPoolFactory_UObject::OnTakeFromPool_Implementation(UObject* Object, const FTransform& Transform)
+void UPoolFactory_UObject::OnTakeFromPool_Implementation(UObject* Object, const FTakeFromPoolPayload& Payload)
 {
 	// Is optional callback if object implements interface
 	if (Object && Object->Implements<UPoolObjectCallback>())
 	{
-		constexpr bool bIsNewSpawned = false;
-		IPoolObjectCallback::Execute_OnTakeFromPool(Object, bIsNewSpawned, Transform);
+		IPoolObjectCallback::Execute_OnTakeFromPool(Object, Payload);
 	}
 }
 

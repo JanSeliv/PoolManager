@@ -99,9 +99,9 @@ public:
 	 ********************************************************************************************* */
 public:
 	/** Is called right before taking the object from its pool. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Factory", meta = (AutoCreateRefTerm = "Transform"))
-	void OnTakeFromPool(UObject* Object, const FTransform& Transform);
-	virtual void OnTakeFromPool_Implementation(UObject* Object, const FTransform& Transform);
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Factory", meta = (AutoCreateRefTerm = "Payload"))
+	void OnTakeFromPool(UObject* Object, const FTakeFromPoolPayload& Payload);
+	virtual void OnTakeFromPool_Implementation(UObject* Object, const FTakeFromPoolPayload& Payload);
 
 	/** Is called right before returning the object back to its pool. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Factory")
