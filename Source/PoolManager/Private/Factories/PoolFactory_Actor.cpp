@@ -69,8 +69,12 @@ void UPoolFactory_Actor::OnTakeFromPool_Implementation(UObject* Object, const FT
 {
 	Super::OnTakeFromPool_Implementation(Object, Payload);
 
-	AActor* Actor = CastChecked<AActor>(Object);
-	Actor->SetActorTransform(Payload.Transform);
+	// Set transform only once: when taken from pool, not newly spawned (where it is already set on spawn)
+	if (!Payload.bIsNewSpawned)
+	{
+		AActor* Actor = CastChecked<AActor>(Object);
+		Actor->SetActorTransform(Payload.Transform);
+	}
 }
 
 // Is overridden to reset transform to the actor before returning the object to its pool
