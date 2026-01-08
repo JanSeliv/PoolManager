@@ -26,14 +26,14 @@ public:
 	 * Called when the object is taken from the pool.If IsNewSpawned is true, the object is newly spawned.
 	 * @param Payload The payload data when taking an object from the pool.
 	 */
-	UFUNCTION(BlueprintNativeEvent, Category = "PoolManager", meta = (AutoCreateRefTerm = "Payload"))
+	UFUNCTION(BlueprintNativeEvent, Category = "[Pool Manager]", meta = (AutoCreateRefTerm = "Payload"))
 	void OnTakeFromPool(const struct FTakeFromPoolPayload& Payload);
 	virtual void OnTakeFromPool_Implementation(const FTakeFromPoolPayload& Payload) {}
 
 	/**
 	 * Called when the object is returned to the pool.
 	 */
-	UFUNCTION(BlueprintNativeEvent, Category = "PoolManager")
+	UFUNCTION(BlueprintNativeEvent, Category = "[Pool Manager]")
 	void OnReturnToPool();
 	virtual void OnReturnToPool_Implementation() {}
 
@@ -41,7 +41,7 @@ public:
 	 * Called when the object is activated or deactivated.
 	 * @param NewState The new state of the object.
 	 */
-	UFUNCTION(BlueprintNativeEvent, Category = "PoolManager")
+	UFUNCTION(BlueprintNativeEvent, Category = "[Pool Manager]")
 	void OnChangedStateInPool(EPoolObjectState NewState);
 	virtual void OnChangedStateInPool_Implementation(EPoolObjectState NewState) {}
 };

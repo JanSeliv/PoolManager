@@ -1,13 +1,15 @@
 ﻿// Copyright (c) Yevhenii Selivanov
 
 #include "K2Node_TakeFromPoolArray.h"
-//---
+
+// Pool Manager
 #include "PoolManagerSubsystem.h"
-//---
+
+// UE
 #include "EdGraphSchema_K2.h"
 #include "K2Node_CallFunction.h"
 #include "KismetCompiler.h"
-//---
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(K2Node_TakeFromPoolArray)
 
 UEdGraphNode::FCreatePinParams UK2Node_TakeFromPoolArray::GetReturnValuePinParams() const

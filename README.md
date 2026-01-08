@@ -1,5 +1,5 @@
 <a href="https://github.com/JanSeliv/PoolManager/blob/main/LICENSE">![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)</a>
-<a href="https://www.unrealengine.com/">![Unreal Engine](https://img.shields.io/badge/Unreal-5.6-dea309?style=flat&logo=unrealengine)
+<a href="https://www.unrealengine.com/">![Unreal Engine](https://img.shields.io/badge/Unreal-5.7-dea309?style=flat&logo=unrealengine)
 </a>
 
 <br/>
@@ -36,6 +36,10 @@ Check out our [Release](https://github.com/JanSeliv/PoolManager/releases) page f
 Also, explore this [game project repository](https://github.com/JanSeliv/Bomber) to view the Pool Manager in action.
 
 ## 📅 Changelog
+#### 2026-XX-XX
+- Updated to **Unreal Engine 5.7**.
+- [Bug] Fixed Take From Pool factory callback is not called for newly spawned objects
+- [Bug] Fixed blueprint use of CreateNewObjectInPool has no class param
 #### 2025-11-17
 - Updated to **Unreal Engine 5.6**.
 #### 2025-01-01

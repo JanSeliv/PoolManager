@@ -1,7 +1,8 @@
 ﻿// Copyright (c) Yevhenii Selivanov.
 
 #include "PoolManagerModule.h"
-//---
+
+// UE
 #include "Modules/ModuleManager.h"
 
 void FPoolManagerModule::StartupModule()

@@ -2,8 +2,9 @@
 
 #pragma once
 
+// Pool Manager
 #include "K2Node_TakeFromPoolBase.h"
-//---
+
 #include "K2Node_TakeFromPool.generated.h"
 
 /**

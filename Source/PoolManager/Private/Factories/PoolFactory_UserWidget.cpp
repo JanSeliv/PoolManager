@@ -1,10 +1,14 @@
 ﻿// Copyright (c) Yevhenii Selivanov
 
 #include "Factories/PoolFactory_UserWidget.h"
-//---
+
+// Pool Manager
+#include "Data/PoolObjectState.h"
+
+// UE
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetTree.h"
-//---
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PoolFactory_UserWidget)
 
 // Is overridden to handle UserWidget-inherited classes

@@ -2,8 +2,9 @@
 
 #pragma once
 
+// Pool Manager
 #include "Factories/PoolFactory_UObject.h"
-//---
+
 #include "PoolFactory_UserWidget.generated.h"
 
 /**

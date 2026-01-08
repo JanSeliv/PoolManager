@@ -1,10 +1,16 @@
 ﻿// Copyright (c) Yevhenii Selivanov
 
 #include "Factories/PoolFactory_Actor.h"
-//---
+
+// Pool Manager
+#include "Data/PoolObjectData.h"
+#include "Data/PoolObjectState.h"
+#include "Data/TakeFromPoolPayload.h"
+
+// UE
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
-//---
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PoolFactory_Actor)
 
 // Is overridden to handle Actors-inherited classes

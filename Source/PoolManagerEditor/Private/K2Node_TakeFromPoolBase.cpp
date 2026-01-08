@@ -1,9 +1,11 @@
 ﻿// Copyright (c) Yevhenii Selivanov
 
 #include "K2Node_TakeFromPoolBase.h"
-//---
+
+// Pool Manager
 #include "PoolManagerSubsystem.h"
-//---
+
+// UE
 #include "BlueprintActionDatabaseRegistrar.h"
 #include "BlueprintNodeSpawner.h"
 #include "K2Node_AssignmentStatement.h"
@@ -12,7 +14,7 @@
 #include "K2Node_ExecutionSequence.h"
 #include "K2Node_TemporaryVariable.h"
 #include "KismetCompiler.h"
-//---
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(K2Node_TakeFromPoolBase)
 
 #define LOCTEXT_NAMESPACE "K2Node_TakeFromPoolBase"
@@ -289,14 +291,14 @@ FName UK2Node_TakeFromPoolBase::GetCornerIcon() const
 
 void UK2Node_TakeFromPoolBase::GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const
 {
-	// actions get registered under specific object-keys; the idea is that 
-	// actions might have to be updated (or deleted) if their object-key is  
-	// mutated (or removed)... here we use the node's class (so if the node 
+	// actions get registered under specific object-keys; the idea is that
+	// actions might have to be updated (or deleted) if their object-key is
+	// mutated (or removed)... here we use the node's class (so if the node
 	// type disappears, then the action should go with it)
 	const UClass* ActionKey = GetClass();
-	// to keep from needlessly instantiating a UBlueprintNodeSpawner, first   
+	// to keep from needlessly instantiating a UBlueprintNodeSpawner, first
 	// check to make sure that the registrar is looking for actions of this type
-	// (could be regenerating actions for a specific asset, and therefore the 
+	// (could be regenerating actions for a specific asset, and therefore the
 	// registrar would only accept actions corresponding to that asset)
 	if (ActionRegistrar.IsOpenForRegistration(ActionKey))
 	{

@@ -3,15 +3,18 @@
 #pragma once
 
 #include "UObject/Object.h"
-//---
-#include "PoolManagerTypes.h"
-//---
+
+// Pool Manager
+#include "Data/SpawnRequest.h"
+
 #include "PoolFactory_UObject.generated.h"
+
+enum class EPoolObjectState : uint8;
 
 /**
  * Each factory implements specific logic of creating and managing objects of its class and its children.
  * Factories are designed to handle such differences as:
- * Creation: UObjects call NewObject; Actors call SpawnActor, Components call NewObject+RegisterComponent, Widgets call CreateWidget etc.  
+ * Creation: UObjects call NewObject; Actors call SpawnActor, Components call NewObject+RegisterComponent, Widgets call CreateWidget etc.
  * Destruction: UObjects call ConditionalBeginDestroy; Actors call DestroyActor, Components call DestroyComponent, Widgets call RemoveFromParent etc.
  * Pool: Actors and Scene Components are changing visibility, collision, ticking, etc. UObjects and Widgets are not.
  *
@@ -31,7 +34,7 @@ class POOLMANAGER_API UPoolFactory_UObject : public UObject
 public:
 	/** OVERRIDE by child class to return the class of an object that this factory will create and manage.
 	 * E.g: UObject for UPoolFactory_UObject, AActor for UPoolFactory_Actor, UWidget for UPoolFactory_Widget etc. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Pool Factory")
+	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "[Pool Manager]")
 	const UClass* GetObjectClass() const;
 	virtual FORCEINLINE const UClass* GetObjectClass_Implementation() const { return UObject::StaticClass(); }
 
@@ -42,46 +45,46 @@ public:
 public:
 	/** Method to queue object spawn requests.
 	 * Is called from UPoolManagerSubsystem::CreateNewObjectInPool. */
-	UFUNCTION(BlueprintNativeEvent, Blueprintable, Category = "Pool Factory", meta = (AutoCreateRefTerm = "Request"))
+	UFUNCTION(BlueprintNativeEvent, Blueprintable, Category = "[Pool Manager]", meta = (AutoCreateRefTerm = "Request"))
 	void RequestSpawn(const FSpawnRequest& Request);
 	virtual void RequestSpawn_Implementation(const FSpawnRequest& Request);
 
 	/** Removes the first spawn request from the queue and returns it.
 	 * Is called after 'RequestSpawn'. */
-	UFUNCTION(BlueprintCallable, Category = "Pool Factory")
+	UFUNCTION(BlueprintCallable, Category = "[Pool Manager]")
 	virtual bool DequeueSpawnRequest(FSpawnRequest& OutRequest);
 
 	/** Calls SpawnNow with the given request and process the callbacks. */
-	UFUNCTION(BlueprintCallable, Category = "Pool Factory")
+	UFUNCTION(BlueprintCallable, Category = "[Pool Manager]")
 	void ProcessRequestNow(const FSpawnRequest& Request);
 
 	/** Method to immediately spawn requested object.
 	 * Is called after 'DequeueSpawnRequest'. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Factory", meta = (AutoCreateRefTerm = "Request"))
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "[Pool Manager]", meta = (AutoCreateRefTerm = "Request"))
 	UObject* SpawnNow(const FSpawnRequest& Request);
 	virtual UObject* SpawnNow_Implementation(const FSpawnRequest& Request);
 
 	/** Alternative method to remove specific spawn request from the queue and returns it. */
-	UFUNCTION(BlueprintCallable, Category = "Pool Factory")
-	virtual bool DequeueSpawnRequestByHandle(const FPoolObjectHandle& Handle, FSpawnRequest& OutRequest);
+	UFUNCTION(BlueprintCallable, Category = "[Pool Manager]")
+	virtual bool DequeueSpawnRequestByHandle(const struct FPoolObjectHandle& Handle, FSpawnRequest& OutRequest);
 
 	/** Returns true if the spawn queue is empty, so there are no spawn request at current moment. */
-	UFUNCTION(BlueprintPure, Category = "Pool Factory")
-	virtual FORCEINLINE bool IsSpawnQueueEmpty() const { return SpawnQueueInternal.IsEmpty(); }
+	UFUNCTION(BlueprintPure, Category = "[Pool Manager]")
+	virtual FORCEINLINE bool IsSpawnQueueEmpty() const { return SpawnQueue.IsEmpty(); }
 
 	/** Is called right after object is spawned and before it is registered in the Pool.
 	 * Is called after 'SpawnNow'. */
-	UFUNCTION(BlueprintCallable, Category = "C++")
-	virtual void OnPreRegistered(const FSpawnRequest& Request, const FPoolObjectData& ObjectData);
+	UFUNCTION(BlueprintCallable, Category = "[Pool Manager]")
+	virtual void OnPreRegistered(const FSpawnRequest& Request, const struct FPoolObjectData& ObjectData);
 
 	/** Is called right after object is spawned and registered in the Pool.
 	 * Is called after 'OnPreRegistered'. */
-	UFUNCTION(BlueprintCallable, Category = "C++")
-	virtual void OnPostSpawned(const FSpawnRequest& Request, const FPoolObjectData& ObjectData);
+	UFUNCTION(BlueprintCallable, Category = "[Pool Manager]")
+	virtual void OnPostSpawned(const FSpawnRequest& Request, const struct FPoolObjectData& ObjectData);
 
 protected:
 	/** Is called on next frame to process a chunk of the spawn queue. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Factory", meta = (BlueprintProtected))
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "[Pool Manager]", meta = (BlueprintProtected))
 	void OnNextTickProcessSpawn();
 	virtual void OnNextTickProcessSpawn_Implementation();
 
@@ -90,7 +93,7 @@ protected:
 	 ********************************************************************************************* */
 public:
 	/** Method to destroy given object. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Factory")
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "[Pool Manager]")
 	void Destroy(UObject* Object);
 	virtual void Destroy_Implementation(UObject* Object);
 
@@ -99,17 +102,17 @@ public:
 	 ********************************************************************************************* */
 public:
 	/** Is called right before taking the object from its pool. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Factory", meta = (AutoCreateRefTerm = "Payload"))
-	void OnTakeFromPool(UObject* Object, const FTakeFromPoolPayload& Payload);
-	virtual void OnTakeFromPool_Implementation(UObject* Object, const FTakeFromPoolPayload& Payload);
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "[Pool Manager]", meta = (AutoCreateRefTerm = "Payload"))
+	void OnTakeFromPool(UObject* Object, const struct FTakeFromPoolPayload& Payload);
+	virtual void OnTakeFromPool_Implementation(UObject* Object, const struct FTakeFromPoolPayload& Payload);
 
 	/** Is called right before returning the object back to its pool. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Factory")
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "[Pool Manager]")
 	void OnReturnToPool(UObject* Object);
 	virtual void OnReturnToPool_Implementation(UObject* Object);
 
 	/** Is called when activates the object to take it from pool or deactivate when is returned back. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Pool Factory")
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "[Pool Manager]")
 	void OnChangedStateInPool(EPoolObjectState NewState, UObject* InObject);
 	virtual void OnChangedStateInPool_Implementation(EPoolObjectState NewState, UObject* InObject);
 
@@ -118,6 +121,6 @@ public:
 	 ********************************************************************************************* */
 protected:
 	/** All request to spawn. */
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, Transient, AdvancedDisplay, Category = "Pool Factory", meta = (BlueprintProtected, DisplayName = "Spawn Queue"))
-	TArray<FSpawnRequest> SpawnQueueInternal;
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, Transient, AdvancedDisplay, Category = "[Pool Manager]", meta = (BlueprintProtected))
+	TArray<FSpawnRequest> SpawnQueue;
 };

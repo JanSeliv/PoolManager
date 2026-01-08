@@ -5,11 +5,9 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 
 // Pool Manager
-#include "PoolManagerTypes.h"
+#include "Data/SpawnRequestPriority.h"
 
 #include "PoolManagerUtils.generated.h"
-
-enum class ESpawnRequestPriority : uint8;
 
 /**
  * Blueprint utility class for Pool Manager.
