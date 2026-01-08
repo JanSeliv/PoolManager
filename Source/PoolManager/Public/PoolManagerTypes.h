@@ -249,7 +249,7 @@ struct POOLMANAGER_API FSpawnCallbacks
 /**
  * Define a structure to hold the necessary information for spawning an object.
  */
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta = (HasNativeMake = "/Script/PoolManager.PoolManagerUtils.MakeSpawnRequest"))
 struct POOLMANAGER_API FSpawnRequest
 {
 	GENERATED_BODY()
