@@ -36,7 +36,7 @@ Check out our [Release](https://github.com/JanSeliv/PoolManager/releases) page f
 Also, explore this [game project repository](https://github.com/JanSeliv/Bomber) to view the Pool Manager in action.
 
 ## 📅 Changelog
-#### 2026-XX-XX
+#### 2026-01-11
 - Updated to **Unreal Engine 5.7**.
 - [Bug] Fixed Take From Pool factory callback is not called for newly spawned objects
 - [Bug] Fixed blueprint use of CreateNewObjectInPool has no class param
