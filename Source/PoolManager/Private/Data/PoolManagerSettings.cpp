@@ -1,9 +1,10 @@
 ﻿// Copyright (c) Yevhenii Selivanov
 
 #include "Data/PoolManagerSettings.h"
-//---
+
+// Pool Manager
 #include "Factories/PoolFactory_UObject.h"
-//---
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PoolManagerSettings)
 
 // Returns all Pool Factories that will be used by the Pool Manager

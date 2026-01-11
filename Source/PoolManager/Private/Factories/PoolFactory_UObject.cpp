@@ -1,13 +1,15 @@
 ﻿// Copyright (c) Yevhenii Selivanov
 
 #include "Factories/PoolFactory_UObject.h"
-//---
+
+// Pool Manager
 #include "PoolObjectCallback.h"
 #include "Data/PoolManagerSettings.h"
-//---
+
+// UE
 #include "TimerManager.h"
 #include "Engine/World.h"
-//---
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PoolFactory_UObject)
 
 /*********************************************************************************************
@@ -26,9 +28,9 @@ void UPoolFactory_UObject::RequestSpawn_Implementation(const FSpawnRequest& Requ
 	auto FindInsertionIndex = [&](ESpawnRequestPriority Priority)
 	{
 		int32 InsertIdx = 0;
-		for (int32 Index = 0; Index < SpawnQueueInternal.Num(); ++Index)
+		for (int32 Index = 0; Index < SpawnQueue.Num(); ++Index)
 		{
-			if (SpawnQueueInternal[Index].Priority < Priority)
+			if (SpawnQueue[Index].Priority < Priority)
 			{
 				break;
 			}
@@ -53,13 +55,13 @@ void UPoolFactory_UObject::RequestSpawn_Implementation(const FSpawnRequest& Requ
 		{
 			// Use lambda to find the correct insertion index based on the priority
 			const int32 InsertIdx = FindInsertionIndex(Request.Priority);
-			SpawnQueueInternal.Insert(Request, InsertIdx);
+			SpawnQueue.Insert(Request, InsertIdx);
 		}
 		break;
 
 	case ESpawnRequestPriority::Normal:
 		// Normal, add to the end of the queue
-		SpawnQueueInternal.Emplace(Request);
+		SpawnQueue.Emplace(Request);
 		break;
 
 	default:
@@ -69,7 +71,7 @@ void UPoolFactory_UObject::RequestSpawn_Implementation(const FSpawnRequest& Requ
 	// If this is the first object in the queue, schedule the OnNextTickProcessSpawn to be called on the next frame
 	// Creating UObjects on separate threads is not thread-safe and leads to problems with garbage collection,
 	// so we will create them on the game thread, but defer to next frame to avoid hitches
-	if (SpawnQueueInternal.Num() == 1)
+	if (SpawnQueue.Num() == 1)
 	{
 		const UWorld* World = GetWorld();
 		checkf(World, TEXT("ERROR: [%i] %hs:\n'World' is null!"), __LINE__, __FUNCTION__);
@@ -82,11 +84,11 @@ void UPoolFactory_UObject::RequestSpawn_Implementation(const FSpawnRequest& Requ
 bool UPoolFactory_UObject::DequeueSpawnRequest(FSpawnRequest& OutRequest)
 {
 	bool bResult = false;
-	if (SpawnQueueInternal.IsValidIndex(0))
+	if (SpawnQueue.IsValidIndex(0))
 	{
 		// Copy and remove first request from the queue (without Swap to keep order)
-		OutRequest = SpawnQueueInternal[0];
-		SpawnQueueInternal.RemoveAt(0);
+		OutRequest = SpawnQueue[0];
+		SpawnQueue.RemoveAt(0);
 
 		bResult = OutRequest.IsValid();
 	}
@@ -111,19 +113,19 @@ void UPoolFactory_UObject::ProcessRequestNow(const FSpawnRequest& Request)
 // Alternative method to remove specific spawn request from the queue and returns it.
 bool UPoolFactory_UObject::DequeueSpawnRequestByHandle(const FPoolObjectHandle& Handle, FSpawnRequest& OutRequest)
 {
-	const int32 Idx = SpawnQueueInternal.IndexOfByPredicate([&Handle](const FSpawnRequest& Request)
+	const int32 Idx = SpawnQueue.IndexOfByPredicate([&Handle](const FSpawnRequest& Request)
 	{
 		return Request.Handle == Handle;
 	});
 
-	if (!ensureMsgf(SpawnQueueInternal.IsValidIndex(Idx), TEXT("ASSERT: [%i] %hs:\nHandle is not found within Spawn Requests, can't dequeue it: %s"), __LINE__, __FUNCTION__, *Handle.GetHash().ToString()))
+	if (!ensureMsgf(SpawnQueue.IsValidIndex(Idx), TEXT("ASSERT: [%i] %hs:\nHandle is not found within Spawn Requests, can't dequeue it: %s"), __LINE__, __FUNCTION__, *Handle.GetHash().ToString()))
 	{
 		return false;
 	}
 
 	// Copy and remove first request from the queue (without Swap to keep order)
-	OutRequest = SpawnQueueInternal[Idx];
-	SpawnQueueInternal.RemoveAt(Idx);
+	OutRequest = SpawnQueue[Idx];
+	SpawnQueue.RemoveAt(Idx);
 
 	return OutRequest.IsValid();
 }
@@ -151,12 +153,10 @@ void UPoolFactory_UObject::OnPostSpawned(const FSpawnRequest& Request, const FPo
 		Request.Callbacks.OnPostSpawned(ObjectData);
 	}
 
-	// Is optional callback if object implements interface
-	if (ObjectData && ObjectData->Implements<UPoolObjectCallback>())
-	{
-		constexpr bool bIsNewSpawned = true;
-		IPoolObjectCallback::Execute_OnTakeFromPool(ObjectData.Get(), bIsNewSpawned, Request.Transform);
-	}
+	FTakeFromPoolPayload Payload;
+	Payload.bIsNewSpawned = true;
+	Payload.Transform = Request.Transform;
+	OnTakeFromPool(ObjectData.Get(), Payload);
 }
 
 // Is called on next frame to process a chunk of the spawn queue
@@ -168,7 +168,7 @@ void UPoolFactory_UObject::OnNextTickProcessSpawn_Implementation()
 		ObjectsPerFrame = 1;
 	}
 
-	const int32 NumToSpawn = FMath::Min(ObjectsPerFrame, SpawnQueueInternal.Num());
+	const int32 NumToSpawn = FMath::Min(ObjectsPerFrame, SpawnQueue.Num());
 	for (int32 Index = 0; Index < NumToSpawn; ++Index)
 	{
 		FSpawnRequest OutRequest;
@@ -180,7 +180,7 @@ void UPoolFactory_UObject::OnNextTickProcessSpawn_Implementation()
 
 	// If there are more actors to spawn, schedule this function to be called again on the next frame
 	// Is deferred to next frame instead of doing it on other threads since spawning actors is not thread-safe operation
-	if (!SpawnQueueInternal.IsEmpty())
+	if (!SpawnQueue.IsEmpty())
 	{
 		const UWorld* World = GetWorld();
 		checkf(World, TEXT("ERROR: [%i] %hs:\n'World' is null!"), __LINE__, __FUNCTION__);
@@ -204,13 +204,12 @@ void UPoolFactory_UObject::Destroy_Implementation(UObject* Object)
  ********************************************************************************************* */
 
 // Is called right before taking the object from its pool
-void UPoolFactory_UObject::OnTakeFromPool_Implementation(UObject* Object, const FTransform& Transform)
+void UPoolFactory_UObject::OnTakeFromPool_Implementation(UObject* Object, const FTakeFromPoolPayload& Payload)
 {
 	// Is optional callback if object implements interface
 	if (Object && Object->Implements<UPoolObjectCallback>())
 	{
-		constexpr bool bIsNewSpawned = false;
-		IPoolObjectCallback::Execute_OnTakeFromPool(Object, bIsNewSpawned, Transform);
+		IPoolObjectCallback::Execute_OnTakeFromPool(Object, Payload);
 	}
 }
 

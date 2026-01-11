@@ -1,17 +1,22 @@
 ﻿// Copyright (c) Yevhenii Selivanov
 
 #include "PoolManagerSubsystem.h"
-//---
+
+// Pool Manager
 #include "Data/PoolManagerSettings.h"
+#include "Data/PoolObjectState.h"
+#include "Data/SpawnRequest.h"
+#include "Data/TakeFromPoolPayload.h"
 #include "Factories/PoolFactory_UObject.h"
-//---
+
+// UE
 #include "Engine/Engine.h"
 #include "Engine/World.h"
-//---
+
 #if WITH_EDITOR
 #include "Editor.h"
 #endif // WITH_EDITOR
-//---
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PoolManagerSubsystem)
 
 /*********************************************************************************************
@@ -19,7 +24,7 @@
  ********************************************************************************************* */
 
 // Returns the pointer to your Pool Manager
-UPoolManagerSubsystem* UPoolManagerSubsystem::GetPoolManagerByClass(TSubclassOf<UPoolManagerSubsystem> OptionalClass/* = nullptr*/, const UObject* OptionalWorldContext/* = nullptr*/)
+UPoolManagerSubsystem* UPoolManagerSubsystem::GetPoolManagerByClass(TSubclassOf<UPoolManagerSubsystem> OptionalClass /* = nullptr*/, const UObject* OptionalWorldContext /* = nullptr*/)
 {
 	if (!OptionalClass)
 	{
@@ -27,14 +32,14 @@ UPoolManagerSubsystem* UPoolManagerSubsystem::GetPoolManagerByClass(TSubclassOf<
 	}
 
 	const UWorld* World = OptionalWorldContext
-		                      ? GEngine->GetWorldFromContextObject(OptionalWorldContext, EGetWorldErrorMode::ReturnNull)
-		                      : GEngine->GetCurrentPlayWorld();
+	                          ? GEngine->GetWorldFromContextObject(OptionalWorldContext, EGetWorldErrorMode::ReturnNull)
+	                          : GEngine->GetCurrentPlayWorld();
 #if WITH_EDITOR
 	if (!World && GIsEditor && GEditor)
 	{
 		World = GEditor->IsPlaySessionInProgress()
-			        ? (GEditor->GetCurrentPlayWorld() ? GEditor->GetCurrentPlayWorld() : (GEditor->GetPIEWorldContext() ? GEditor->GetPIEWorldContext()->World() : nullptr))
-			        : GEditor->GetEditorWorldContext().World();
+		            ? (GEditor->GetCurrentPlayWorld() ? GEditor->GetCurrentPlayWorld() : (GEditor->GetPIEWorldContext() ? GEditor->GetPIEWorldContext()->World() : nullptr))
+		            : GEditor->GetEditorWorldContext().World();
 		World = World ? World : GWorld;
 	}
 #endif
@@ -74,7 +79,7 @@ void UPoolManagerSubsystem::BPTakeFromPool(const UClass* ObjectClass, const FTra
 }
 
 // Is code async version of TakeFromPool() that calls callback functions when the object is ready
-FPoolObjectHandle UPoolManagerSubsystem::TakeFromPool(const UClass* ObjectClass, const FTransform& Transform/* = FTransform::Identity*/, const FOnSpawnCallback& Completed/* = nullptr*/, ESpawnRequestPriority Priority/* = ESpawnRequestPriority::Normal*/)
+FPoolObjectHandle UPoolManagerSubsystem::TakeFromPool(const UClass* ObjectClass, const FTransform& Transform /* = FTransform::Identity*/, const FOnSpawnCallback& Completed /* = nullptr*/, ESpawnRequestPriority Priority /* = ESpawnRequestPriority::Normal*/)
 {
 	const FPoolObjectData* ObjectData = TakeFromPoolOrNull(ObjectClass, Transform);
 	if (ObjectData)
@@ -95,7 +100,7 @@ FPoolObjectHandle UPoolManagerSubsystem::TakeFromPool(const UClass* ObjectClass,
 }
 
 // Is internal function to find object in pool or return null
-const FPoolObjectData* UPoolManagerSubsystem::TakeFromPoolOrNull(const UClass* ObjectClass, const FTransform& Transform/* = FTransform::Identity*/)
+const FPoolObjectData* UPoolManagerSubsystem::TakeFromPoolOrNull(const UClass* ObjectClass, const FTransform& Transform /* = FTransform::Identity*/)
 {
 	if (!ensureMsgf(ObjectClass, TEXT("ASSERT: [%i] %hs:\n'ObjectClass' is not specified!"), __LINE__, __FUNCTION__))
 	{
@@ -129,7 +134,10 @@ const FPoolObjectData* UPoolManagerSubsystem::TakeFromPoolOrNull(const UClass* O
 
 	UObject& InObject = FoundData->GetChecked();
 
-	Pool->GetFactoryChecked().OnTakeFromPool(&InObject, Transform);
+	FTakeFromPoolPayload Payload;
+	Payload.bIsNewSpawned = false;
+	Payload.Transform = Transform;
+	Pool->GetFactoryChecked().OnTakeFromPool(&InObject, Payload);
 
 	SetObjectStateInPool(EPoolObjectState::Active, InObject, *Pool);
 
@@ -150,9 +158,9 @@ void UPoolManagerSubsystem::BPTakeFromPoolArray(const UClass* ObjectClass, int32
 
 	// --- Take if free objects in pool first
 	TArray<FSpawnRequest> InRequests;
-	FSpawnRequest::MakeRequests(/*out*/InRequests, ObjectClass, Amount, Priority);
+	FSpawnRequest::MakeRequests(/*out*/ InRequests, ObjectClass, Amount, Priority);
 	TArray<FPoolObjectData> FreeObjectsData;
-	TakeFromPoolArrayOrNull(/*out*/FreeObjectsData, InRequests);
+	TakeFromPoolArrayOrNull(/*out*/ FreeObjectsData, InRequests);
 
 	const int32 Difference = InRequests.Num() - FreeObjectsData.Num();
 	if (Difference == 0)
@@ -167,7 +175,7 @@ void UPoolManagerSubsystem::BPTakeFromPoolArray(const UClass* ObjectClass, int32
 	// --- Create the rest of objects
 	TArray<FPoolObjectHandle> OutHandles;
 	FPoolObjectHandle::Conv_ObjectsToHandles(OutHandles, FreeObjectsData);
-	FSpawnRequest::FilterRequests(/*out*/InRequests, FreeObjectsData, Difference);
+	FSpawnRequest::FilterRequests(/*out*/ InRequests, FreeObjectsData, Difference);
 	CreateNewObjectsArrayInPool(InRequests, OutHandles, [Completed](const TArray<FPoolObjectData>& OutObjects)
 	{
 		TArray<UObject*> Objects;
@@ -177,18 +185,18 @@ void UPoolManagerSubsystem::BPTakeFromPoolArray(const UClass* ObjectClass, int32
 }
 
 // Is code-overridable alternative version of BPTakeFromPoolArray() that calls callback functions when all objects of the same class are ready
-void UPoolManagerSubsystem::TakeFromPoolArray(TArray<FPoolObjectHandle>& OutHandles, const UClass* ObjectClass, int32 Amount, const FOnSpawnAllCallback& Completed, ESpawnRequestPriority Priority/* = ESpawnRequestPriority::Normal*/)
+void UPoolManagerSubsystem::TakeFromPoolArray(TArray<FPoolObjectHandle>& OutHandles, const UClass* ObjectClass, int32 Amount, const FOnSpawnAllCallback& Completed, ESpawnRequestPriority Priority /* = ESpawnRequestPriority::Normal*/)
 {
 	if (!ensureMsgf(ObjectClass, TEXT("ASSERT: [%i] %hs:\n'ObjectClass' is not specified!"), __LINE__, __FUNCTION__)
-		|| !ensureMsgf(Amount > 0, TEXT("ASSERT: [%i] %hs:\n'Amount' is less than 1!"), __LINE__, __FUNCTION__))
+	    || !ensureMsgf(Amount > 0, TEXT("ASSERT: [%i] %hs:\n'Amount' is less than 1!"), __LINE__, __FUNCTION__))
 	{
 		return;
 	}
 
 	TArray<FSpawnRequest> InRequests;
-	FSpawnRequest::MakeRequests(/*out*/InRequests, ObjectClass, Amount, Priority);
+	FSpawnRequest::MakeRequests(/*out*/ InRequests, ObjectClass, Amount, Priority);
 	TArray<FPoolObjectData> FreeObjectsData;
-	TakeFromPoolArrayOrNull(/*out*/FreeObjectsData, InRequests);
+	TakeFromPoolArrayOrNull(/*out*/ FreeObjectsData, InRequests);
 	FPoolObjectHandle::Conv_ObjectsToHandles(OutHandles, FreeObjectsData);
 
 	const int32 Difference = InRequests.Num() - FreeObjectsData.Num();
@@ -203,7 +211,7 @@ void UPoolManagerSubsystem::TakeFromPoolArray(TArray<FPoolObjectHandle>& OutHand
 	}
 
 	// --- Create the rest of objects
-	FSpawnRequest::FilterRequests(/*out*/InRequests, FreeObjectsData, Difference);
+	FSpawnRequest::FilterRequests(/*out*/ InRequests, FreeObjectsData, Difference);
 	CreateNewObjectsArrayInPool(InRequests, OutHandles, Completed);
 }
 
@@ -217,7 +225,7 @@ void UPoolManagerSubsystem::TakeFromPoolArray(TArray<FPoolObjectHandle>& OutHand
 
 	// --- Take if free objects in pool first
 	TArray<FPoolObjectData> FreeObjectsData;
-	TakeFromPoolArrayOrNull(/*out*/FreeObjectsData, InRequests);
+	TakeFromPoolArrayOrNull(/*out*/ FreeObjectsData, InRequests);
 	FPoolObjectHandle::Conv_ObjectsToHandles(OutHandles, FreeObjectsData);
 
 	const int32 Difference = InRequests.Num() - FreeObjectsData.Num();
@@ -232,7 +240,7 @@ void UPoolManagerSubsystem::TakeFromPoolArray(TArray<FPoolObjectHandle>& OutHand
 	}
 
 	// --- Create the rest of objects
-	FSpawnRequest::FilterRequests(/*out*/InRequests, FreeObjectsData, Difference);
+	FSpawnRequest::FilterRequests(/*out*/ InRequests, FreeObjectsData, Difference);
 	CreateNewObjectsArrayInPool(InRequests, OutHandles, Completed);
 }
 
@@ -297,7 +305,7 @@ bool UPoolManagerSubsystem::ReturnToPool(const FPoolObjectHandle& Handle)
 }
 
 /*********************************************************************************************
- * Return To Pool (multiple objects) 
+ * Return To Pool (multiple objects)
  ********************************************************************************************* */
 
 // Is the same as ReturnToPool() but for multiple objects
@@ -389,10 +397,10 @@ FPoolObjectHandle UPoolManagerSubsystem::CreateNewObjectInPool_Implementation(co
 }
 
 // Is the same as CreateNewObjectInPool() but for multiple objects
-void UPoolManagerSubsystem::CreateNewObjectsArrayInPool(TArray<FSpawnRequest>& InRequests, TArray<FPoolObjectHandle>& OutAllHandles, const FOnSpawnAllCallback& Completed/*= nullptr*/)
+void UPoolManagerSubsystem::CreateNewObjectsArrayInPool(TArray<FSpawnRequest>& InRequests, TArray<FPoolObjectHandle>& OutAllHandles, const FOnSpawnAllCallback& Completed /*= nullptr*/)
 {
 	TArray<FPoolObjectHandle> NewHandles;
-	FPoolObjectHandle::Conv_RequestsToHandles(/*out*/NewHandles, InRequests);
+	FPoolObjectHandle::Conv_RequestsToHandles(/*out*/ NewHandles, InRequests);
 	OutAllHandles.Append(NewHandles);
 
 	// --- Process OnEachSpawned only if Completed is set
@@ -405,7 +413,7 @@ void UPoolManagerSubsystem::CreateNewObjectsArrayInPool(TArray<FSpawnRequest>& I
 		{
 			const UPoolManagerSubsystem* PoolManager = WeakThis.Get();
 			if (!PoolManager
-				|| ObjectData.Handle != LastHandleRequest)
+			    || ObjectData.Handle != LastHandleRequest)
 			{
 				// Not last object are spawned yet
 				// We can rely on LastHandle because the order of requests in queue is preserved
@@ -437,13 +445,13 @@ void UPoolManagerSubsystem::AddFactory(TSubclassOf<UPoolFactory_UObject> Factory
 {
 	const UClass* ObjectClass = GetObjectClassByFactory(FactoryClass);
 	if (!ensureMsgf(ObjectClass, TEXT("ASSERT: [%i] %hs:\n'ObjectClass' is not set for next factory: %s"), __LINE__, __FUNCTION__, *FactoryClass->GetName())
-		|| AllFactoriesInternal.Contains(ObjectClass))
+	    || AllFactories.Contains(ObjectClass))
 	{
 		return;
 	}
 
 	UPoolFactory_UObject* NewFactory = NewObject<UPoolFactory_UObject>(this, FactoryClass);
-	AllFactoriesInternal.Emplace(ObjectClass, NewFactory);
+	AllFactories.Emplace(ObjectClass, NewFactory);
 }
 
 // Removes factory from the Pool Manager by its class
@@ -455,7 +463,7 @@ void UPoolManagerSubsystem::RemoveFactory(TSubclassOf<UPoolFactory_UObject> Fact
 		return;
 	}
 
-	const TObjectPtr<UPoolFactory_UObject>* FactoryPtr = AllFactoriesInternal.Find(ObjectClass);
+	const TObjectPtr<UPoolFactory_UObject>* FactoryPtr = AllFactories.Find(ObjectClass);
 	if (!ensureMsgf(FactoryPtr, TEXT("ASSERT: [%i] %hs:\nFactory is not found for next class: %s"), __LINE__, __FUNCTION__, *ObjectClass->GetName()))
 	{
 		return;
@@ -467,7 +475,7 @@ void UPoolManagerSubsystem::RemoveFactory(TSubclassOf<UPoolFactory_UObject> Fact
 		Factory->ConditionalBeginDestroy();
 	}
 
-	AllFactoriesInternal.Remove(ObjectClass);
+	AllFactories.Remove(ObjectClass);
 }
 
 // Traverses the class hierarchy to find the closest registered factory for a given object type or its ancestors
@@ -481,7 +489,7 @@ UPoolFactory_UObject* UPoolManagerSubsystem::FindPoolFactoryChecked(const UClass
 	// This loop will keep traversing up the hierarchy until a registered factory is found or the root is reached
 	while (CurrentClass != nullptr)
 	{
-		FoundFactory = AllFactoriesInternal.Find(CurrentClass);
+		FoundFactory = AllFactories.Find(CurrentClass);
 		if (FoundFactory)
 		{
 			break; // Exit the loop if a factory is found
@@ -509,7 +517,7 @@ const UClass* UPoolManagerSubsystem::GetObjectClassByFactory(const TSubclassOf<U
 void UPoolManagerSubsystem::InitializeAllFactories()
 {
 	TArray<UClass*> AllPoolFactories;
-	UPoolManagerSettings::Get().GetPoolFactories(/*out*/AllPoolFactories);
+	UPoolManagerSettings::Get().GetPoolFactories(/*out*/ AllPoolFactories);
 	for (UClass* FactoryClass : AllPoolFactories)
 	{
 		AddFactory(FactoryClass);
@@ -519,7 +527,7 @@ void UPoolManagerSubsystem::InitializeAllFactories()
 // Destroys all Pool Factories that are used by the Pool Manager when dealing with objects
 void UPoolManagerSubsystem::ClearAllFactories()
 {
-	for (const TTuple<TObjectPtr<const UClass>, TObjectPtr<UPoolFactory_UObject>>& FactoryIt : AllFactoriesInternal)
+	for (const TTuple<TObjectPtr<const UClass>, TObjectPtr<UPoolFactory_UObject>>& FactoryIt : AllFactories)
 	{
 		if (IsValid(FactoryIt.Value))
 		{
@@ -527,7 +535,7 @@ void UPoolManagerSubsystem::ClearAllFactories()
 		}
 	}
 
-	AllFactoriesInternal.Empty();
+	AllFactories.Empty();
 }
 
 /*********************************************************************************************
@@ -537,13 +545,13 @@ void UPoolManagerSubsystem::ClearAllFactories()
 // Destroy all object of a pool by a given class
 void UPoolManagerSubsystem::EmptyPool_Implementation(const UClass* ObjectClass)
 {
-	const int32 PoolIdx = ObjectClass ? PoolsInternal.IndexOfByKey(ObjectClass) : INDEX_NONE;
+	const int32 PoolIdx = ObjectClass ? Pools.IndexOfByKey(ObjectClass) : INDEX_NONE;
 	if (!ensureMsgf(PoolIdx != INDEX_NONE, TEXT("ASSERT: [%i] %hs:\n'ObjectClass' is not not contained in the pool!"), __LINE__, __FUNCTION__, *GetNameSafe(ObjectClass)))
 	{
 		return;
 	}
 
-	FPoolContainer& Pool = PoolsInternal[PoolIdx];
+	FPoolContainer& Pool = Pools[PoolIdx];
 	UPoolFactory_UObject& Factory = Pool.GetFactoryChecked();
 	TArray<FPoolObjectData>& PoolObjects = Pool.PoolObjects;
 	for (int32 Index = PoolObjects.Num() - 1; Index >= 0; --Index)
@@ -557,34 +565,34 @@ void UPoolManagerSubsystem::EmptyPool_Implementation(const UClass* ObjectClass)
 
 	PoolObjects.Empty();
 
-	PoolsInternal.RemoveAtSwap(PoolIdx);
+	Pools.RemoveAtSwap(PoolIdx);
 }
 
 // Destroy all objects in all pools that are handled by the Pool Manager
 void UPoolManagerSubsystem::EmptyAllPools_Implementation()
 {
-	const int32 PoolsNum = PoolsInternal.Num();
+	const int32 PoolsNum = Pools.Num();
 	for (int32 Index = PoolsNum - 1; Index >= 0; --Index)
 	{
-		const UClass* ObjectClass = PoolsInternal.IsValidIndex(Index) ? PoolsInternal[Index].ObjectClass : nullptr;
+		const UClass* ObjectClass = Pools.IsValidIndex(Index) ? Pools[Index].ObjectClass : nullptr;
 		EmptyPool(ObjectClass);
 	}
 
-	PoolsInternal.Empty();
+	Pools.Empty();
 }
 
 // Destroy all objects in Pool Manager based on a predicate functor
 void UPoolManagerSubsystem::EmptyAllByPredicate(const TFunctionRef<bool(const UObject* Object)> Predicate)
 {
-	const int32 PoolsNum = PoolsInternal.Num();
+	const int32 PoolsNum = Pools.Num();
 	for (int32 PoolIndex = PoolsNum - 1; PoolIndex >= 0; --PoolIndex)
 	{
-		if (!PoolsInternal.IsValidIndex(PoolIndex))
+		if (!Pools.IsValidIndex(PoolIndex))
 		{
 			continue;
 		}
 
-		FPoolContainer& PoolIt = PoolsInternal[PoolIndex];
+		FPoolContainer& PoolIt = Pools[PoolIndex];
 		UPoolFactory_UObject& Factory = PoolIt.GetFactoryChecked();
 		TArray<FPoolObjectData>& PoolObjectsRef = PoolIt.PoolObjects;
 
@@ -593,7 +601,7 @@ void UPoolManagerSubsystem::EmptyAllByPredicate(const TFunctionRef<bool(const UO
 		{
 			UObject* ObjectIt = PoolObjectsRef.IsValidIndex(ObjectIndex) ? PoolObjectsRef[ObjectIndex].Get() : nullptr;
 			if (!IsValid(ObjectIt)
-				|| !Predicate(ObjectIt))
+			    || !Predicate(ObjectIt))
 			{
 				continue;
 			}
@@ -617,7 +625,7 @@ EPoolObjectState UPoolManagerSubsystem::GetPoolObjectState_Implementation(const 
 	const FPoolObjectData* PoolObject = Pool ? Pool->FindInPool(*Object) : nullptr;
 
 	if (!PoolObject
-		|| !PoolObject->IsValid())
+	    || !PoolObject->IsValid())
 	{
 		// Is not contained in any pool
 		return EPoolObjectState::None;
@@ -738,8 +746,8 @@ void UPoolManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 #if WITH_EDITOR
 	if (GEditor
-		&& !GEditor->IsPlaySessionInProgress() // Is Editor and not in PIE
-		&& !GEditor->OnWorldDestroyed().IsBoundToObject(this))
+	    && !GEditor->IsPlaySessionInProgress() // Is Editor and not in PIE
+	    && !GEditor->OnWorldDestroyed().IsBoundToObject(this))
 	{
 		// Editor pool manager instance has different lifetime than PIE pool manager instance,
 		// So, to prevent memory leaks, clear all pools on switching levels in Editor
@@ -747,7 +755,7 @@ void UPoolManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		auto OnWorldDestroyed = [WeakThis](const UWorld* World)
 		{
 			if (!World || !World->IsEditorWorld()
-				|| !GEditor || GEditor->IsPlaySessionInProgress())
+			    || !GEditor || GEditor->IsPlaySessionInProgress())
 			{
 				// Not Editor world or in PIE
 				return;
@@ -782,7 +790,7 @@ FPoolContainer& UPoolManagerSubsystem::FindPoolOrAdd(const UClass* ObjectClass)
 		return *Pool;
 	}
 
-	FPoolContainer& Pool = PoolsInternal.AddDefaulted_GetRef();
+	FPoolContainer& Pool = Pools.AddDefaulted_GetRef();
 	Pool.ObjectClass = ObjectClass;
 	Pool.Factory = FindPoolFactoryChecked(ObjectClass);
 	return Pool;
@@ -796,7 +804,7 @@ FPoolContainer* UPoolManagerSubsystem::FindPool(const UClass* ObjectClass)
 		return nullptr;
 	}
 
-	return PoolsInternal.FindByKey(ObjectClass);
+	return Pools.FindByKey(ObjectClass);
 }
 
 // Activates or deactivates the object if such object is handled by the Pool Manager

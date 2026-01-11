@@ -1,10 +1,16 @@
 ﻿// Copyright (c) Yevhenii Selivanov
 
 #include "Factories/PoolFactory_Actor.h"
-//---
+
+// Pool Manager
+#include "Data/PoolObjectData.h"
+#include "Data/PoolObjectState.h"
+#include "Data/TakeFromPoolPayload.h"
+
+// UE
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
-//---
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PoolFactory_Actor)
 
 // Is overridden to handle Actors-inherited classes
@@ -65,12 +71,16 @@ void UPoolFactory_Actor::Destroy_Implementation(UObject* Object)
  ********************************************************************************************* */
 
 // Is overridden to set transform to the actor before taking the object from its pool
-void UPoolFactory_Actor::OnTakeFromPool_Implementation(UObject* Object, const FTransform& Transform)
+void UPoolFactory_Actor::OnTakeFromPool_Implementation(UObject* Object, const FTakeFromPoolPayload& Payload)
 {
-	Super::OnTakeFromPool_Implementation(Object, Transform);
+	Super::OnTakeFromPool_Implementation(Object, Payload);
 
-	AActor* Actor = CastChecked<AActor>(Object);
-	Actor->SetActorTransform(Transform);
+	// Set transform only once: when taken from pool, not newly spawned (where it is already set on spawn)
+	if (!Payload.bIsNewSpawned)
+	{
+		AActor* Actor = CastChecked<AActor>(Object);
+		Actor->SetActorTransform(Payload.Transform);
+	}
 }
 
 // Is overridden to reset transform to the actor before returning the object to its pool
