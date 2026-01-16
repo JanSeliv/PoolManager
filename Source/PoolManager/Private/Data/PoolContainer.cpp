@@ -34,6 +34,14 @@ FPoolObjectData* FPoolContainer::FindInPool(const FPoolObjectHandle& Handle)
 	return PoolObjects.FindByKey(Handle);
 }
 
+void FPoolContainer::RemoveInPool(const UObject& Object)
+{
+	if (const FPoolObjectData* ObjectData = FindInPool(Object))
+	{
+		PoolObjects.RemoveSingleSwap(*ObjectData);
+	}
+}
+
 // Returns factory or crashes as critical error if it is not set
 UPoolFactory_UObject& FPoolContainer::GetFactoryChecked() const
 {

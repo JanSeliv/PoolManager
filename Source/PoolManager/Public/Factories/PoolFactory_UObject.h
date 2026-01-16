@@ -123,4 +123,24 @@ protected:
 	/** All request to spawn. */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, Transient, AdvancedDisplay, Category = "[Pool Manager]", meta = (BlueprintProtected))
 	TArray<FSpawnRequest> SpawnQueue;
+
+	/*********************************************************************************************
+	 * Pool policy
+	 ********************************************************************************************* */
+public:
+	/** Returns the maximum number of inactive objects allowed to be kept cached for this factory. */
+	FORCEINLINE int32 GetMaxCachedInactive() const { return MaxCachedInactive; }
+
+protected:
+	/**
+	 * Maximum number of inactive objects that this factory is allowed to keep cached in the pool.
+	 *
+	 * This value limits ONLY the number of objects stored in the Inactive (cached) state.
+	 * It does NOT limit object creation, spawning, or the number of active objects.
+	 * When the limit is reached, returned objects are destroyed instead of cached.
+	 *
+	 * Default is unlimited (no cache limit).
+	 */
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, Category = "[Pool Manager]", meta = (BlueprintProtected))
+	int32 MaxCachedInactive = TNumericLimits<int32>::Max();
 };
