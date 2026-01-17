@@ -46,6 +46,9 @@ struct POOLMANAGER_API FPoolContainer
 	FPoolObjectData* FindInPool(const struct FPoolObjectHandle& Handle);
 	const FORCEINLINE FPoolObjectData* FindInPool(const struct FPoolObjectHandle& Handle) const { return const_cast<FPoolContainer*>(this)->FindInPool(Handle); }
 
+	/** Removes the specified object from the pool registry. */
+	void RemoveInPool(const UObject& Object);
+
 	/** Returns factory or crashes as critical error if it is not set. */
 	class UPoolFactory_UObject& GetFactoryChecked() const;
 
