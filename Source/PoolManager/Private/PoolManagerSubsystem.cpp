@@ -274,10 +274,21 @@ bool UPoolManagerSubsystem::ReturnToPool_Implementation(UObject* Object)
 		return false;
 	}
 
-	FPoolContainer& Pool = FindPoolOrAdd(Object->GetClass());
-	Pool.GetFactoryChecked().OnReturnToPool(Object);
+	const UClass* ObjectClass = Object->GetClass();
+	FPoolContainer& Pool = FindPoolOrAdd(ObjectClass);
+	UPoolFactory_UObject& Factory = Pool.GetFactoryChecked();
 
-	SetObjectStateInPool(EPoolObjectState::Inactive, *Object, Pool);
+	const int32 InactiveCount = GetFreeObjectsNum(ObjectClass);
+	if (InactiveCount < Factory.GetMaxCachedInactive())
+	{
+		Factory.OnReturnToPool(Object);
+		SetObjectStateInPool(EPoolObjectState::Inactive, *Object, Pool);
+	}
+	else
+	{
+		RemoveObjectInPool(*Object, Pool);
+		Factory.Destroy(Object);
+	}
 
 	return true;
 }
@@ -819,4 +830,15 @@ void UPoolManagerSubsystem::SetObjectStateInPool(EPoolObjectState NewState, UObj
 	PoolObject->bIsActive = NewState == EPoolObjectState::Active;
 
 	InPool.GetFactoryChecked().OnChangedStateInPool(NewState, &InObject);
+}
+
+void UPoolManagerSubsystem::RemoveObjectInPool(UObject& InObject, FPoolContainer& InPool)
+{
+	const FPoolObjectData* PoolObject = InPool.FindInPool(InObject);
+	if (!ensureMsgf(PoolObject && PoolObject->IsValid(), TEXT("ASSERT: [%i] %hs:\nObject is not registered or has invalid pool data for class: %s"), __LINE__, __FUNCTION__, *GetNameSafe(InPool.ObjectClass)))
+	{
+		return;
+	}
+
+	InPool.RemoveInPool(InObject);
 }

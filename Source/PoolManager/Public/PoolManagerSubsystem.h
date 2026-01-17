@@ -343,4 +343,18 @@ protected:
 	 * @param InPool The pool that contains the object.
 	 * @warning Do not call it directly, use TakeFromPool() or ReturnToPool() instead. */
 	virtual void SetObjectStateInPool(EPoolObjectState NewState, UObject& InObject, UPARAM(ref) FPoolContainer& InPool);
+
+	/**
+	 * Unregisters the object from the pool registry and removes it from internal pool data.
+	 *
+	 * This permanently removes the object from the Pool Manager and should be used when
+	 * the object must no longer participate in pooling (e.g. cache limit reached).
+	 *
+	 * Unlike SetObjectStateInPool(), this does NOT change the active/inactive state,
+	 * but fully detaches the object from the pooling system.
+	 *
+	 * @warning Do not call it directly from gameplay code.
+	 * Used internally by the Pool Manager when an object must be destroyed or discarded.
+	 */
+	virtual void RemoveObjectInPool(UObject& InObject, UPARAM(ref) FPoolContainer& InPool);
 };
