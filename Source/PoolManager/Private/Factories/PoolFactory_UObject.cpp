@@ -3,12 +3,15 @@
 #include "Factories/PoolFactory_UObject.h"
 
 // Pool Manager
-#include "PoolObjectCallback.h"
 #include "Data/PoolManagerSettings.h"
+#include "Data/PoolObjectData.h"
+#include "Data/PoolObjectState.h"
+#include "Data/TakeFromPoolPayload.h"
+#include "PoolObjectCallback.h"
 
 // UE
-#include "TimerManager.h"
 #include "Engine/World.h"
+#include "TimerManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PoolFactory_UObject)
 
@@ -42,7 +45,7 @@ void UPoolFactory_UObject::RequestSpawn_Implementation(const FSpawnRequest& Requ
 	// Insert request based on priority
 	switch (Request.Priority)
 	{
-	case ESpawnRequestPriority::Critical:
+		case ESpawnRequestPriority::Critical:
 		{
 			// Immediate processing for Critical priority requests
 			ProcessRequestNow(Request);
@@ -50,8 +53,8 @@ void UPoolFactory_UObject::RequestSpawn_Implementation(const FSpawnRequest& Requ
 			return;
 		}
 
-	case ESpawnRequestPriority::High: // Fall-through
-	case ESpawnRequestPriority::Medium:
+		case ESpawnRequestPriority::High: // Fall-through
+		case ESpawnRequestPriority::Medium:
 		{
 			// Use lambda to find the correct insertion index based on the priority
 			const int32 InsertIdx = FindInsertionIndex(Request.Priority);
@@ -59,13 +62,13 @@ void UPoolFactory_UObject::RequestSpawn_Implementation(const FSpawnRequest& Requ
 		}
 		break;
 
-	case ESpawnRequestPriority::Normal:
-		// Normal, add to the end of the queue
-		SpawnQueue.Emplace(Request);
-		break;
+		case ESpawnRequestPriority::Normal:
+			// Normal, add to the end of the queue
+			SpawnQueue.Emplace(Request);
+			break;
 
-	default:
-		ensureAlwaysMsgf(false, TEXT("ASSERT: [%i] %hs:\n'Priority' is not valid: %d"), __LINE__, __FUNCTION__, static_cast<int32>(Request.Priority));
+		default:
+			ensureAlwaysMsgf(false, TEXT("ASSERT: [%i] %hs:\n'Priority' is not valid: %d"), __LINE__, __FUNCTION__, static_cast<int32>(Request.Priority));
 	}
 
 	// If this is the first object in the queue, schedule the OnNextTickProcessSpawn to be called on the next frame
@@ -157,6 +160,8 @@ void UPoolFactory_UObject::OnPostSpawned(const FSpawnRequest& Request, const FPo
 	Payload.bIsNewSpawned = true;
 	Payload.Transform = Request.Transform;
 	OnTakeFromPool(ObjectData.Get(), Payload);
+
+	OnChangedStateInPool(EPoolObjectState::Active, ObjectData.Get());
 }
 
 // Is called on next frame to process a chunk of the spawn queue
