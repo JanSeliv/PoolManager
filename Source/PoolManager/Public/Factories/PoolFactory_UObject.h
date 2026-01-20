@@ -129,6 +129,7 @@ protected:
 	 ********************************************************************************************* */
 public:
 	/** Returns the maximum number of inactive objects allowed to be kept cached for this factory. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "[Pool Manager]")
 	FORCEINLINE int32 GetMaxCachedInactive() const { return MaxCachedInactive; }
 
 protected:
@@ -139,8 +140,8 @@ protected:
 	 * It does NOT limit object creation, spawning, or the number of active objects.
 	 * When the limit is reached, returned objects are destroyed instead of cached.
 	 *
-	 * Default is unlimited (no cache limit).
+	 * Default is unlimited (where -1 means no cache limit).
 	 */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, Category = "[Pool Manager]", meta = (BlueprintProtected))
-	int32 MaxCachedInactive = TNumericLimits<int32>::Max();
+	int32 MaxCachedInactive = INDEX_NONE;
 };
