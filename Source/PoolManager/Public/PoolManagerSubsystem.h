@@ -182,10 +182,11 @@ public:
 	 * Could be useful to add already existed objects (spawned by outer code) to the pool.
 	 * It's designed to be used only on already existed objects unknown for the Pool Manager.
 	 * @param InData The data with the object to register in the pool.
+	 * @param bNotify If true by default; if false, directly changes the state without callbacks.
 	 * @return true if registered successfully, otherwise false. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "[Pool Manager]", meta = (AutoCreateRefTerm = "InData"))
-	bool RegisterObjectInPool(const struct FPoolObjectData& InData);
-	virtual bool RegisterObjectInPool_Implementation(const struct FPoolObjectData& InData);
+	bool RegisterObjectInPool(const struct FPoolObjectData& InData, bool bNotify = true);
+	virtual bool RegisterObjectInPool_Implementation(const struct FPoolObjectData& InData, bool bNotify = true);
 
 	/** Always creates new object and adds it to the pool by its class.
 	 * Use carefully if only there is no free objects contained in pool.
@@ -341,8 +342,9 @@ protected:
 	 * @param NewState If true, the object will be activated, otherwise deactivated.
 	 * @param InObject The object to activate or deactivate.
 	 * @param InPool The pool that contains the object.
+	 * @param bNotify If true by default; if false, directly changes the state without callbacks.
 	 * @warning Do not call it directly, use TakeFromPool() or ReturnToPool() instead. */
-	virtual void SetObjectStateInPool(EPoolObjectState NewState, UObject& InObject, UPARAM(ref) FPoolContainer& InPool);
+	virtual void SetObjectStateInPool(EPoolObjectState NewState, UObject& InObject, FPoolContainer& InPool, bool bNotify = true);
 
 	/**
 	 * Unregisters the object from the pool registry and removes it from internal pool data.
@@ -356,5 +358,5 @@ protected:
 	 * @warning Do not call it directly from gameplay code.
 	 * Used internally by the Pool Manager when an object must be destroyed or discarded.
 	 */
-	virtual void RemoveObjectInPool(UObject& InObject, UPARAM(ref) FPoolContainer& InPool);
+	virtual void RemoveObjectInPool(UObject& InObject, FPoolContainer& InPool);
 };

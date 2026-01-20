@@ -278,17 +278,18 @@ bool UPoolManagerSubsystem::ReturnToPool_Implementation(UObject* Object)
 	FPoolContainer& Pool = FindPoolOrAdd(ObjectClass);
 	UPoolFactory_UObject& Factory = Pool.GetFactoryChecked();
 
-	const int32 InactiveCount = GetFreeObjectsNum(ObjectClass);
-	if (InactiveCount < Factory.GetMaxCachedInactive())
+	const int32 MaxCachedInactive = Factory.GetMaxCachedInactive();
+	if (MaxCachedInactive != INDEX_NONE
+	    && GetFreeObjectsNum(ObjectClass) >= MaxCachedInactive)
 	{
-		Factory.OnReturnToPool(Object);
-		SetObjectStateInPool(EPoolObjectState::Inactive, *Object, Pool);
-	}
-	else
-	{
+		// Factory has cache limit enabled and cache is full, discarding returned objects
 		RemoveObjectInPool(*Object, Pool);
 		Factory.Destroy(Object);
+		return true;
 	}
+
+	Factory.OnReturnToPool(Object);
+	SetObjectStateInPool(EPoolObjectState::Inactive, *Object, Pool);
 
 	return true;
 }
@@ -346,7 +347,7 @@ bool UPoolManagerSubsystem::ReturnToPoolArray(const TArray<FPoolObjectHandle>& H
  ********************************************************************************************* */
 
 // Adds specified object as is to the pool by its class to be handled by the Pool Manager
-bool UPoolManagerSubsystem::RegisterObjectInPool_Implementation(const FPoolObjectData& InData)
+bool UPoolManagerSubsystem::RegisterObjectInPool_Implementation(const FPoolObjectData& InData, bool bNotify /*= true*/)
 {
 	if (!ensureMsgf(InData.PoolObject, TEXT("ASSERT: [%i] %hs:\n'PoolObject' is not valid, can't registed it in the Pool!"), __LINE__, __FUNCTION__))
 	{
@@ -371,7 +372,7 @@ bool UPoolManagerSubsystem::RegisterObjectInPool_Implementation(const FPoolObjec
 
 	Pool.PoolObjects.Emplace(Data);
 
-	SetObjectStateInPool(Data.GetState(), *Data.PoolObject, Pool);
+	SetObjectStateInPool(Data.GetState(), *Data.PoolObject, Pool, bNotify);
 
 	return true;
 }
@@ -397,7 +398,7 @@ FPoolObjectHandle UPoolManagerSubsystem::CreateNewObjectInPool_Implementation(co
 	{
 		if (UPoolManagerSubsystem* PoolManager = WeakThis.Get())
 		{
-			PoolManager->RegisterObjectInPool(ObjectData);
+			PoolManager->RegisterObjectInPool_Implementation(ObjectData, /*bNotify=*/false);
 		}
 	};
 
@@ -819,7 +820,7 @@ FPoolContainer* UPoolManagerSubsystem::FindPool(const UClass* ObjectClass)
 }
 
 // Activates or deactivates the object if such object is handled by the Pool Manager
-void UPoolManagerSubsystem::SetObjectStateInPool(EPoolObjectState NewState, UObject& InObject, FPoolContainer& InPool)
+void UPoolManagerSubsystem::SetObjectStateInPool(EPoolObjectState NewState, UObject& InObject, FPoolContainer& InPool, bool bNotify /*= true*/)
 {
 	FPoolObjectData* PoolObject = InPool.FindInPool(InObject);
 	if (!ensureMsgf(PoolObject && PoolObject->IsValid(), TEXT("ASSERT: [%i] %hs:\n'PoolObject' is not registered in given pool for class: %s"), __LINE__, __FUNCTION__, *GetNameSafe(InPool.ObjectClass)))
@@ -829,7 +830,10 @@ void UPoolManagerSubsystem::SetObjectStateInPool(EPoolObjectState NewState, UObj
 
 	PoolObject->bIsActive = NewState == EPoolObjectState::Active;
 
-	InPool.GetFactoryChecked().OnChangedStateInPool(NewState, &InObject);
+	if (bNotify)
+	{
+		InPool.GetFactoryChecked().OnChangedStateInPool(NewState, &InObject);
+	}
 }
 
 void UPoolManagerSubsystem::RemoveObjectInPool(UObject& InObject, FPoolContainer& InPool)
