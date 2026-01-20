@@ -38,8 +38,10 @@ Also, explore this [game project repository](https://github.com/JanSeliv/Bomber)
 ## 📅 Changelog
 #### 2026-01-11
 - Updated to **Unreal Engine 5.7**.
-- [Bug] Fixed Take From Pool factory callback is not called for newly spawned objects
+- [Bug] Fixed Take From Pool factory callback is not called for newly spawned objects and ensure is is called in correct order
 - [Bug] Fixed blueprint use of CreateNewObjectInPool has no class param
+- [Bug] Fixed OnChangedStateInPool might cause crash for newly spawned actors
+- Added a factory-level pool policy that limits how many inactive objects are cached by [RyuginStudio](https://github.com/RyuginStudio)
 #### 2025-11-17
 - Updated to **Unreal Engine 5.6**.
 #### 2025-01-01
