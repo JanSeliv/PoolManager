@@ -278,17 +278,18 @@ bool UPoolManagerSubsystem::ReturnToPool_Implementation(UObject* Object)
 	FPoolContainer& Pool = FindPoolOrAdd(ObjectClass);
 	UPoolFactory_UObject& Factory = Pool.GetFactoryChecked();
 
-	const int32 InactiveCount = GetFreeObjectsNum(ObjectClass);
-	if (InactiveCount < Factory.GetMaxCachedInactive())
+	const int32 MaxCachedInactive = Factory.GetMaxCachedInactive();
+	if (MaxCachedInactive != INDEX_NONE
+	    && GetFreeObjectsNum(ObjectClass) >= MaxCachedInactive)
 	{
-		Factory.OnReturnToPool(Object);
-		SetObjectStateInPool(EPoolObjectState::Inactive, *Object, Pool);
-	}
-	else
-	{
+		// Factory has cache limit enabled and cache is full, discarding returned objects
 		RemoveObjectInPool(*Object, Pool);
 		Factory.Destroy(Object);
+		return true;
 	}
+
+	Factory.OnReturnToPool(Object);
+	SetObjectStateInPool(EPoolObjectState::Inactive, *Object, Pool);
 
 	return true;
 }
