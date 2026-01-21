@@ -276,8 +276,20 @@ bool UPoolManagerSubsystem::ReturnToPool_Implementation(UObject* Object)
 
 	const UClass* ObjectClass = Object->GetClass();
 	FPoolContainer& Pool = FindPoolOrAdd(ObjectClass);
-	UPoolFactory_UObject& Factory = Pool.GetFactoryChecked();
 
+	/**
+	 * Object is already managed by the pool and is free (inactive).
+	 * Treat double return as no-op.
+	 */
+	if (const FPoolObjectData* ObjectData = Pool.FindInPool(*Object))
+	{
+		if (ObjectData->IsFree())
+		{
+			return true;
+		}
+	}
+
+	UPoolFactory_UObject& Factory = Pool.GetFactoryChecked();
 	const int32 MaxCachedInactive = Factory.GetMaxCachedInactive();
 	if (MaxCachedInactive != INDEX_NONE
 	    && GetFreeObjectsNum(ObjectClass) >= MaxCachedInactive)
