@@ -73,14 +73,15 @@ void UPoolFactory_Actor::Destroy_Implementation(UObject* Object)
 // Is overridden to set transform to the actor before taking the object from its pool
 void UPoolFactory_Actor::OnTakeFromPool_Implementation(UObject* Object, const FTakeFromPoolPayload& Payload)
 {
-	Super::OnTakeFromPool_Implementation(Object, Payload);
-
 	// Set transform only once: when taken from pool, not newly spawned (where it is already set on spawn)
 	if (!Payload.bIsNewSpawned)
 	{
 		AActor* Actor = CastChecked<AActor>(Object);
 		Actor->SetActorTransform(Payload.Transform);
 	}
+
+	// Super is called last, so it's safe to get transform-dependent logic in callbacks
+	Super::OnTakeFromPool_Implementation(Object, Payload);
 }
 
 // Is overridden to reset transform to the actor before returning the object to its pool
