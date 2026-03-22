@@ -12,7 +12,10 @@
 #include "K2Node_CallFunction.h"
 #include "K2Node_CustomEvent.h"
 #include "K2Node_ExecutionSequence.h"
+#include "K2Node_IfThenElse.h"
 #include "K2Node_TemporaryVariable.h"
+#include "Kismet/KismetSystemLibrary.h"
+#include "Kismet2/BlueprintEditorUtils.h"
 #include "KismetCompiler.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(K2Node_TakeFromPoolBase)
@@ -48,10 +51,91 @@ bool UK2Node_TakeFromPoolBase::PostExpandNode(FKismetCompilerContext& CompilerCo
 	return bIsErrorFree;
 }
 
+// Returns the selected object class from the class input pin, or nullptr if not set
+UClass* UK2Node_TakeFromPoolBase::GetSelectedClass(const TArray<UEdGraphPin*>* InPinsToSearch /*= nullptr*/) const
+{
+	const TArray<UEdGraphPin*>& PinsToSearch = InPinsToSearch ? *InPinsToSearch : Pins;
+
+	const FName ClassPinName = GetClassInputPinName();
+	const UEdGraphPin* ClassPin = nullptr;
+	for (const UEdGraphPin* PinIt : PinsToSearch)
+	{
+		if (PinIt->PinName == ClassPinName)
+		{
+			ClassPin = PinIt;
+			break;
+		}
+	}
+
+	if (!ClassPin)
+	{
+		return nullptr;
+	}
+
+	if (ClassPin->DefaultObject && ClassPin->LinkedTo.IsEmpty())
+	{
+		return CastChecked<UClass>(ClassPin->DefaultObject);
+	}
+
+	if (!ClassPin->LinkedTo.IsEmpty())
+	{
+		const UEdGraphPin* ClassSource = ClassPin->LinkedTo[0];
+		return ClassSource ? Cast<UClass>(ClassSource->PinType.PinSubCategoryObject.Get()) : nullptr;
+	}
+
+	return nullptr;
+}
+
+// Updates the output pin type to match the selected class
+void UK2Node_TakeFromPoolBase::OnClassPinChanged() const
+{
+	UEdGraphPin* ReturnValuePin = FindPin(GetReturnValuePinName());
+	if (!ReturnValuePin)
+	{
+		return;
+	}
+
+	TArray<UEdGraphPin*> ConnectionList = ReturnValuePin->LinkedTo;
+	ReturnValuePin->BreakAllPinLinks(true);
+
+	const UClass* SelectedClass = GetSelectedClass();
+	ReturnValuePin->PinType.PinSubCategoryObject = SelectedClass
+	                                                   ? const_cast<UClass*>(SelectedClass->GetAuthoritativeClass())
+	                                                   : UObject::StaticClass();
+
+	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
+	for (UEdGraphPin* Connection : ConnectionList)
+	{
+		K2Schema->TryCreateConnection(ReturnValuePin, Connection);
+	}
+
+	GetGraph()->NotifyGraphChanged();
+	FBlueprintEditorUtils::MarkBlueprintAsModified(GetBlueprint());
+}
+
+// Spawns validation nodes and returns the bool output pin to branch on, base checks IsValid for single objects
+UEdGraphPin* UK2Node_TakeFromPoolBase::SpawnIsResultValidPin(FKismetCompilerContext& CompilerContext, UEdGraph& SourceGraph, UEdGraphPin* ResultVariablePin)
+{
+	UK2Node_CallFunction* IsValidNode = CompilerContext.SpawnIntermediateNode<UK2Node_CallFunction>(this, &SourceGraph);
+	IsValidNode->FunctionReference.SetExternalMember(GET_FUNCTION_NAME_CHECKED(UKismetSystemLibrary, IsValid), UKismetSystemLibrary::StaticClass());
+	IsValidNode->AllocateDefaultPins();
+
+	UEdGraphPin* ObjectInputPin = IsValidNode->FindPinChecked(TEXT("Object"));
+	const UEdGraphSchema_K2* Schema = CompilerContext.GetSchema();
+	Schema->TryCreateConnection(ResultVariablePin, ObjectInputPin);
+
+	return IsValidNode->GetReturnValuePin();
+}
+
 void UK2Node_TakeFromPoolBase::AllocateDefaultPins()
 {
 	CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Execute);
-	CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Completed);
+
+	UEdGraphPin* CompletedPin = CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Completed);
+	CompletedPin->PinToolTip = LOCTEXT("CompletedTooltip", "Called when the object is taken from pool and valid").ToString();
+
+	UEdGraphPin* FailedPin = CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Exec, GetFailedPinName());
+	FailedPin->PinToolTip = LOCTEXT("FailedTooltip", "Called when the pool returned null, e.g. the object class is invalid or spawn failed").ToString();
 
 	UEdGraphPin* TargetPin = CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Object, UPoolManagerSubsystem::StaticClass(), UEdGraphSchema_K2::PN_Self);
 	checkf(TargetPin, TEXT("ERROR: [%i] %hs:\n'TargetPin' is null!"), __LINE__, __FUNCTION__);
@@ -67,10 +151,50 @@ void UK2Node_TakeFromPoolBase::AllocateDefaultPins()
 	CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Object, UObject::StaticClass(), GetReturnValuePinName(), GetReturnValuePinParams());
 }
 
+void UK2Node_TakeFromPoolBase::PinDefaultValueChanged(UEdGraphPin* ChangedPin)
+{
+	if (ChangedPin && ChangedPin->PinName == GetClassInputPinName())
+	{
+		OnClassPinChanged();
+	}
+}
+
+void UK2Node_TakeFromPoolBase::NotifyPinConnectionListChanged(UEdGraphPin* Pin)
+{
+	Super::NotifyPinConnectionListChanged(Pin);
+
+	if (Pin && Pin->PinName == GetClassInputPinName())
+	{
+		OnClassPinChanged();
+	}
+}
+
+FString UK2Node_TakeFromPoolBase::GetPinMetaData(FName InPinName, FName InKey)
+{
+	if (InPinName == GetClassInputPinName() && InKey == TEXT("AllowAbstract"))
+	{
+		return TEXT("false");
+	}
+
+	return Super::GetPinMetaData(InPinName, InKey);
+}
+
 void UK2Node_TakeFromPoolBase::ReallocatePinsDuringReconstruction(TArray<UEdGraphPin*>& OldPins)
 {
-	Super::ReallocatePinsDuringReconstruction(OldPins);
+	AllocateDefaultPins();
 
+	// Preserve the output pin type from the old class selection
+	const UClass* SelectedClass = GetSelectedClass(&OldPins);
+	if (SelectedClass)
+	{
+		UEdGraphPin* ReturnValuePin = FindPin(GetReturnValuePinName());
+		if (ReturnValuePin)
+		{
+			ReturnValuePin->PinType.PinSubCategoryObject = const_cast<UClass*>(SelectedClass->GetAuthoritativeClass());
+		}
+	}
+
+	// Legacy migration: rename old "Then" pin to "Completed"
 	UEdGraphPin* OldThenPin = nullptr;
 	const UEdGraphPin* OldCompletedPin = nullptr;
 
@@ -239,8 +363,26 @@ void UK2Node_TakeFromPoolBase::ExpandNode(class FKismetCompilerContext& Compiler
 		bIsErrorFree &= AssignInputExePin && CompletedEventOutputPin && Schema->TryCreateConnection(AssignInputExePin, CompletedEventOutputPin);
 	}
 
-	// connect assign exec output to output
+	// Branch on result validity: Completed if valid, Failed otherwise
+	UEdGraphPin* IsValidPin = SpawnIsResultValidPin(CompilerContext, *SourceGraph, LoadedObjectVariablePin);
+	if (IsValidPin)
 	{
+		UK2Node_IfThenElse* BranchNode = CompilerContext.SpawnIntermediateNode<UK2Node_IfThenElse>(this, SourceGraph);
+		BranchNode->AllocateDefaultPins();
+
+		UEdGraphPin* AssignOutputExePin = AssignNode->GetThenPin();
+		bIsErrorFree &= AssignOutputExePin && Schema->TryCreateConnection(AssignOutputExePin, BranchNode->GetExecPin());
+		bIsErrorFree &= Schema->TryCreateConnection(IsValidPin, BranchNode->GetConditionPin());
+
+		UEdGraphPin* OutputCompletedPin = FindPin(UEdGraphSchema_K2::PN_Completed);
+		bIsErrorFree &= OutputCompletedPin && CompilerContext.MovePinLinksToIntermediate(*OutputCompletedPin, *BranchNode->GetThenPin()).CanSafeConnect();
+
+		UEdGraphPin* OutputFailedPin = FindPin(GetFailedPinName());
+		bIsErrorFree &= OutputFailedPin && CompilerContext.MovePinLinksToIntermediate(*OutputFailedPin, *BranchNode->GetElsePin()).CanSafeConnect();
+	}
+	else
+	{
+		// No validation available, connect assign directly to Completed
 		UEdGraphPin* OutputCompletedPin = FindPin(UEdGraphSchema_K2::PN_Completed);
 		UEdGraphPin* AssignOutputExePin = AssignNode->GetThenPin();
 		bIsErrorFree &= OutputCompletedPin && AssignOutputExePin && CompilerContext.MovePinLinksToIntermediate(*OutputCompletedPin, *AssignOutputExePin).CanSafeConnect();

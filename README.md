@@ -27,7 +27,7 @@ Creating and destroying objects, like projectiles or explosions, can be slow and
 
 The Pool Manager alleviates these problems by maintaining a pool of objects. Instead of creating and destroying objects all the time, the Pool Manager keeps these objects for reuse. This strategy improves the smoothness of the game.
 
-![PoolManager](https://github.com/JanSeliv/PoolManager/assets/20540872/0af55b33-732c-435d-a5b3-2d7e36cdebf2)
+![PoolManager](https://github.com/user-attachments/assets/1f1b8ae4-bcfa-4968-af7a-69b2e7853b35)
 
 ## 🎓 Sample Projects
 
@@ -36,6 +36,8 @@ Check out our [Release](https://github.com/JanSeliv/PoolManager/releases) page f
 Also, explore this [game project repository](https://github.com/JanSeliv/Bomber) to view the Pool Manager in action.
 
 ## 📅 Changelog
+#### 2026-XX-XX
+- [Editor] Improved blueprint nodes to auto-cast the output pin type to match the selected class input and have a Failed exec output
 #### 2026-01-11
 - Updated to **Unreal Engine 5.7**.
 - [Bug] Fixed Take From Pool factory callback is not called for newly spawned objects and ensure is is called in correct order

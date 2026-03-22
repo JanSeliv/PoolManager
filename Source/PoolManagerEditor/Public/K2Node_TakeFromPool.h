@@ -19,7 +19,7 @@ public:
 	static inline const FName TransformInputName = TEXT("Transform");
 
 	// UK2Node_TakeFromPoolBase
-	virtual FORCEINLINE FName GetReturnValuePinName() override { return TEXT("Object"); }
+	virtual FORCEINLINE FName GetReturnValuePinName() const override { return TEXT("Object"); }
 	virtual FName GetNativeFunctionName() const override;
 	virtual bool PostExpandNode(FKismetCompilerContext& CompilerContext, UEdGraph& SourceGraph, UK2Node_CallFunction& CallTakeFromPoolNode) override;
 	// end of UK2Node_TakeFromPoolBase
