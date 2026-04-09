@@ -38,6 +38,7 @@ Also, explore this [game project repository](https://github.com/JanSeliv/Bomber)
 ## 📅 Changelog
 #### 2026-XX-XX
 - [Editor] Improved blueprint nodes to auto-cast the output pin type to match the selected class input and have a Failed exec output
+- Provided Modular Game Features support: pool cleanup now managed automatically for Modular Game Feature plugins
 #### 2026-01-11
 - Updated to **Unreal Engine 5.7**.
 - [Bug] Fixed Take From Pool factory callback is not called for newly spawned objects and ensure is is called in correct order

@@ -27,4 +27,9 @@ public:
 	 * @return A properly initialized spawn request ready to use. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "[Pool Manager]", meta = (NativeMakeFunc, AutoCreateRefTerm = "Transform"))
 	static struct FSpawnRequest MakeSpawnRequest(TSubclassOf<UObject> ObjectClass, const FTransform& Transform, ESpawnRequestPriority Priority = ESpawnRequestPriority::Normal);
+
+	/** Returns true if the given class belongs to the game feature plugin identified by GameFeatureData.
+	 * Compares the class module name against the plugin content root */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "[Pool Manager]")
+	static bool IsPoolInGameFeaturePlugin(const UClass* ObjectClass, const class UGameFeatureData* GameFeatureData);
 };

@@ -13,6 +13,7 @@ public class PoolManager : ModuleRules
 			{
 				"Core"
 				, "DeveloperSettings" // Created UPoolManagerSettings
+				, "GameFeatures" // Inherited IGameFeatureStateChangeObserver
 			}
 		);
 

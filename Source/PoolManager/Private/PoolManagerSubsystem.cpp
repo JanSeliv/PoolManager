@@ -8,10 +8,12 @@
 #include "Data/SpawnRequest.h"
 #include "Data/TakeFromPoolPayload.h"
 #include "Factories/PoolFactory_UObject.h"
+#include "PoolManagerUtils.h"
 
 // UE
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "GameFeaturesSubsystem.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -275,7 +277,14 @@ bool UPoolManagerSubsystem::ReturnToPool_Implementation(UObject* Object)
 	}
 
 	const UClass* ObjectClass = Object->GetClass();
-	FPoolContainer& Pool = FindPoolOrAdd(ObjectClass);
+	FPoolContainer* PoolPtr = FindPool(ObjectClass);
+	if (!PoolPtr)
+	{
+		// Take from pool was never happening or pool is already emptied
+		return false;
+	}
+
+	FPoolContainer& Pool = *PoolPtr;
 
 	/**
 	 * Object is already managed by the pool and is free (inactive).
@@ -314,7 +323,14 @@ bool UPoolManagerSubsystem::ReturnToPool(const FPoolObjectHandle& Handle)
 		return false;
 	}
 
-	const FPoolContainer& Pool = FindPoolOrAdd(Handle.GetObjectClass());
+	const FPoolContainer* PoolPtr = FindPool(Handle.GetObjectClass());
+	if (!PoolPtr)
+	{
+		// Take from pool was never happening or pool is already emptied
+		return false;
+	}
+
+	const FPoolContainer& Pool = *PoolPtr;
 	if (const FPoolObjectData* ObjectData = Pool.FindInPool(Handle))
 	{
 		const bool bSucceed = ReturnToPool(ObjectData->PoolObject);
@@ -580,11 +596,24 @@ void UPoolManagerSubsystem::EmptyPool_Implementation(const UClass* ObjectClass)
 	TArray<FPoolObjectData>& PoolObjects = Pool.PoolObjects;
 	for (int32 Index = PoolObjects.Num() - 1; Index >= 0; --Index)
 	{
-		UObject* ObjectIt = PoolObjects.IsValidIndex(Index) ? PoolObjects[Index].Get() : nullptr;
-		if (IsValid(ObjectIt))
+		if (!PoolObjects.IsValidIndex(Index))
 		{
-			Factory.Destroy(ObjectIt);
+			continue;
 		}
+
+		UObject* ObjectIt = PoolObjects[Index].Get();
+		if (!IsValid(ObjectIt))
+		{
+			continue;
+		}
+
+		if (PoolObjects[Index].bIsActive)
+		{
+			// Return active objects to pool for proper deactivation callbacks before destruction
+			Factory.OnReturnToPool(ObjectIt);
+		}
+
+		Factory.Destroy(ObjectIt);
 	}
 
 	PoolObjects.Empty();
@@ -768,6 +797,8 @@ void UPoolManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 	InitializeAllFactories();
 
+	UGameFeaturesSubsystem::Get().AddObserver(this, UGameFeaturesSubsystem::EObserverPluginStateUpdateMode::FutureOnly);
+
 #if WITH_EDITOR
 	if (GEditor
 	    && !GEditor->IsPlaySessionInProgress() // Is Editor and not in PIE
@@ -801,7 +832,22 @@ void UPoolManagerSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
 
+	UGameFeaturesSubsystem::Get().RemoveObserver(this);
+
 	ClearAllFactories();
+}
+
+// Automatically empties all pools whose classes belong to the deactivating game feature plugin
+void UPoolManagerSubsystem::OnGameFeatureDeactivating(const UGameFeatureData* GameFeatureData, FGameFeatureDeactivatingContext& Context, const FString& PluginURL)
+{
+	for (int32 Index = Pools.Num() - 1; Index >= 0; --Index)
+	{
+		if (Pools.IsValidIndex(Index)
+		    && UPoolManagerUtils::IsPoolInGameFeaturePlugin(Pools[Index].ObjectClass, GameFeatureData))
+		{
+			EmptyPool(Pools[Index].ObjectClass);
+		}
+	}
 }
 
 // Returns the pointer to found pool by specified class

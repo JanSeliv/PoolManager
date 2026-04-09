@@ -1,4 +1,4 @@
-﻿{
+{
 	"FileVersion": 3,
 	"Version": 1,
 	"VersionName": "1.0",
@@ -15,6 +15,12 @@
 	"CanContainContent": false,
 	"IsBetaVersion": false,
 	"Installed": false,
+	"Plugins": [
+		{
+			"Name": "GameFeatures",
+			"Enabled": true
+		}
+	],
 	"Modules": [
 		{
 			"Name": "PoolManager",

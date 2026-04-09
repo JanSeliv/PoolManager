@@ -8,6 +8,9 @@
 #include "Data/PoolContainer.h"
 #include "Data/SpawnRequestPriority.h"
 
+// UE
+#include "GameFeatureStateChangeObserver.h"
+
 #include "PoolManagerSubsystem.generated.h"
 
 enum class EPoolObjectState : uint8;
@@ -43,6 +46,7 @@ typedef TFunction<void(const TArray<struct FPoolObjectData>&)> FOnSpawnAllCallba
  */
 UCLASS(BlueprintType, Blueprintable)
 class POOLMANAGER_API UPoolManagerSubsystem : public UWorldSubsystem
+    , public IGameFeatureStateChangeObserver
 {
 	GENERATED_BODY()
 
@@ -331,6 +335,10 @@ protected:
 
 	/** Is called on deinitialization of the Pool Manager instance. */
 	virtual void Deinitialize() override;
+
+	/** Used only by projects with Modular Game Features: automatically empties pools
+	 * whose classes belong to the deactivating plugin, so EmptyPool is never needed manually */
+	virtual void OnGameFeatureDeactivating(const UGameFeatureData* GameFeatureData, FGameFeatureDeactivatingContext& Context, const FString& PluginURL) override;
 
 	/** Returns the pointer to found pool by specified class. */
 	virtual FPoolContainer& FindPoolOrAdd(const UClass* ObjectClass);
