@@ -1,4 +1,4 @@
-﻿// Copyright (c) Yevhenii Selivanov
+// Copyright (c) Yevhenii Selivanov
 
 #include "Factories/PoolFactory_UObject.h"
 
@@ -131,6 +131,12 @@ bool UPoolFactory_UObject::DequeueSpawnRequestByHandle(const FPoolObjectHandle& 
 	SpawnQueue.RemoveAt(Idx);
 
 	return OutRequest.IsValid();
+}
+
+// Discards all pending spawn requests from the queue
+void UPoolFactory_UObject::ClearSpawnQueue()
+{
+	SpawnQueue.Empty();
 }
 
 // Method to immediately spawn requested object

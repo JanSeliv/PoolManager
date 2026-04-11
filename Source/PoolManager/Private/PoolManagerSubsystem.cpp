@@ -1,4 +1,4 @@
-﻿// Copyright (c) Yevhenii Selivanov
+// Copyright (c) Yevhenii Selivanov
 
 #include "PoolManagerSubsystem.h"
 
@@ -593,6 +593,10 @@ void UPoolManagerSubsystem::EmptyPool_Implementation(const UClass* ObjectClass)
 
 	FPoolContainer& Pool = Pools[PoolIdx];
 	UPoolFactory_UObject& Factory = Pool.GetFactoryChecked();
+
+	// Discard deferred spawn requests so they don't recreate the pool after removal
+	Factory.ClearSpawnQueue();
+
 	TArray<FPoolObjectData>& PoolObjects = Pool.PoolObjects;
 	for (int32 Index = PoolObjects.Num() - 1; Index >= 0; --Index)
 	{

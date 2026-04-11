@@ -1,4 +1,4 @@
-﻿// Copyright (c) Yevhenii Selivanov
+// Copyright (c) Yevhenii Selivanov
 
 #pragma once
 
@@ -67,6 +67,10 @@ public:
 	/** Alternative method to remove specific spawn request from the queue and returns it. */
 	UFUNCTION(BlueprintCallable, Category = "[Pool Manager]")
 	virtual bool DequeueSpawnRequestByHandle(const struct FPoolObjectHandle& Handle, FSpawnRequest& OutRequest);
+
+	/** Discards all pending spawn requests from the queue */
+	UFUNCTION(BlueprintCallable, Category = "[Pool Manager]")
+	void ClearSpawnQueue();
 
 	/** Returns true if the spawn queue is empty, so there are no spawn request at current moment. */
 	UFUNCTION(BlueprintPure, Category = "[Pool Manager]")
