@@ -116,13 +116,19 @@ void UPoolFactory_UObject::ProcessRequestNow(const FSpawnRequest& Request)
 // Alternative method to remove specific spawn request from the queue and returns it.
 bool UPoolFactory_UObject::DequeueSpawnRequestByHandle(const FPoolObjectHandle& Handle, FSpawnRequest& OutRequest)
 {
+	if (!ensureMsgf(Handle.IsValid(), TEXT("ASSERT: [%i] %hs:\n'Handle' is not valid, can't dequeue spawn request!"), __LINE__, __FUNCTION__))
+	{
+		return false;
+	}
+
 	const int32 Idx = SpawnQueue.IndexOfByPredicate([&Handle](const FSpawnRequest& Request)
 	{
 		return Request.Handle == Handle;
 	});
 
-	if (!ensureMsgf(SpawnQueue.IsValidIndex(Idx), TEXT("ASSERT: [%i] %hs:\nHandle is not found within Spawn Requests, can't dequeue it: %s"), __LINE__, __FUNCTION__, *Handle.GetHash().ToString()))
+	if (!SpawnQueue.IsValidIndex(Idx))
 	{
+		// Handle is valid but not in queue, the pool was likely emptied during cleanup
 		return false;
 	}
 

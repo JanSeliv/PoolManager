@@ -340,8 +340,7 @@ bool UPoolManagerSubsystem::ReturnToPool(const FPoolObjectHandle& Handle)
 	// It's exclusive feature of Handles:
 	// cancel spawn request if object returns to pool faster than it is spawned
 	FSpawnRequest OutRequest;
-	const bool bSucceed = Pool.GetFactoryChecked().DequeueSpawnRequestByHandle(Handle, OutRequest);
-	return ensureMsgf(bSucceed, TEXT("ASSERT: [%i] %hs:\nGiven Handle is not known by Pool Manager and is not even in spawning queue!"), __LINE__, __FUNCTION__);
+	return Pool.GetFactoryChecked().DequeueSpawnRequestByHandle(Handle, OutRequest);
 }
 
 /*********************************************************************************************
