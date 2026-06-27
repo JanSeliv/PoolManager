@@ -1,4 +1,4 @@
-﻿// Copyright (c) Yevhenii Selivanov
+// Copyright (c) Yevhenii Selivanov
 
 #include "K2Node_TakeFromPoolBase.h"
 
@@ -110,7 +110,7 @@ void UK2Node_TakeFromPoolBase::OnClassPinChanged() const
 	}
 
 	GetGraph()->NotifyGraphChanged();
-	FBlueprintEditorUtils::MarkBlueprintAsModified(GetBlueprint());
+	FBlueprintEditorUtils::MarkBlueprintAsModified(GetBlueprintChecked());
 }
 
 // Spawns validation nodes and returns the bool output pin to branch on, base checks IsValid for single objects
