@@ -1,5 +1,5 @@
 <a href="https://github.com/JanSeliv/PoolManager/blob/main/LICENSE">![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)</a>
-<a href="https://www.unrealengine.com/">![Unreal Engine](https://img.shields.io/badge/Unreal-5.7-dea309?style=flat&logo=unrealengine)
+<a href="https://www.unrealengine.com/">![Unreal Engine](https://img.shields.io/badge/Unreal-5.8-dea309?style=flat&logo=unrealengine)
 </a>
 
 <br/>
@@ -37,6 +37,7 @@ Also, explore this [game project repository](https://github.com/JanSeliv/Bomber)
 
 ## 📅 Changelog
 #### 2026-XX-XX
+- Updated to **Unreal Engine 5.8**.
 - [Editor] Improved blueprint nodes to auto-cast the output pin type to match the selected class input and have a Failed exec output
 - Provided Modular Game Features support: pool cleanup now managed automatically for Modular Game Feature plugins
 #### 2026-01-11

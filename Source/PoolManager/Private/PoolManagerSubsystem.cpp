@@ -585,7 +585,7 @@ void UPoolManagerSubsystem::ClearAllFactories()
 void UPoolManagerSubsystem::EmptyPool_Implementation(const UClass* ObjectClass)
 {
 	const int32 PoolIdx = ObjectClass ? Pools.IndexOfByKey(ObjectClass) : INDEX_NONE;
-	if (!ensureMsgf(PoolIdx != INDEX_NONE, TEXT("ASSERT: [%i] %hs:\n'ObjectClass' is not not contained in the pool!"), __LINE__, __FUNCTION__, *GetNameSafe(ObjectClass)))
+	if (!ensureMsgf(PoolIdx != INDEX_NONE, TEXT("ASSERT: [%i] %hs:\n'%s' is not not contained in the pool!"), __LINE__, __FUNCTION__, *GetNameSafe(ObjectClass)))
 	{
 		return;
 	}
