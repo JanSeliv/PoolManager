@@ -1,4 +1,4 @@
-﻿// Copyright (c) Yevhenii Selivanov
+// Copyright (c) Yevhenii Selivanov
 
 #include "PoolManagerUtils.h"
 
@@ -6,7 +6,13 @@
 #include "Data/SpawnRequest.h"
 
 // UE
+#include "Engine/Engine.h"
+#include "Engine/World.h"
 #include "GameFeatureData.h"
+
+#if WITH_EDITOR
+#include "Editor.h"
+#endif // WITH_EDITOR
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PoolManagerUtils)
 
@@ -63,4 +69,60 @@ bool UPoolManagerUtils::IsPoolInGameFeaturePlugin(const UClass* ObjectClass, con
 	return !PluginName.IsEmpty()
 	       && !ModuleName.IsEmpty()
 	       && ModuleName.StartsWith(PluginName);
+}
+
+/*********************************************************************************************
+ * Internal Helpers
+ ********************************************************************************************* */
+
+// Returns the current play world as UObject for weak pointer storage
+UWorld* UPoolManagerUtils::GetPlayWorld(const UObject* WorldContextObject)
+{
+	UWorld* FoundWorld = nullptr;
+	if (GEngine)
+	{
+		FoundWorld = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::ReturnNull);
+		if (!FoundWorld)
+		{
+			FoundWorld = GEngine->GetCurrentPlayWorld();
+		}
+	}
+
+#if WITH_EDITOR
+	if (!FoundWorld && GEditor)
+	{
+		FoundWorld = GetWorldMakingVisible();
+		if (!FoundWorld)
+		{
+			FoundWorld = GEditor->GetEditorWorldContext().World();
+		}
+	}
+#endif
+
+	if (!FoundWorld)
+	{
+		FoundWorld = GWorld;
+	}
+
+	return FoundWorld;
+}
+
+// Returns world currently making a level visible
+UWorld* UPoolManagerUtils::GetWorldMakingVisible()
+{
+	UWorld* FoundWorld = nullptr;
+	for (const FWorldContext& Context : GEngine->GetWorldContexts())
+	{
+		UWorld* World = Context.World();
+		if (!World
+		    || !World->IsGameWorld()
+		    || !World->HasAnyLevelMakingVisible())
+		{
+			continue;
+		}
+
+		FoundWorld = World;
+		break;
+	}
+	return FoundWorld;
 }

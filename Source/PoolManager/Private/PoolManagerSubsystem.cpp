@@ -11,7 +11,6 @@
 #include "PoolManagerUtils.h"
 
 // UE
-#include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFeaturesSubsystem.h"
 
@@ -33,19 +32,7 @@ UPoolManagerSubsystem* UPoolManagerSubsystem::GetPoolManagerByClass(TSubclassOf<
 		OptionalClass = StaticClass();
 	}
 
-	const UWorld* World = OptionalWorldContext
-	                          ? GEngine->GetWorldFromContextObject(OptionalWorldContext, EGetWorldErrorMode::ReturnNull)
-	                          : GEngine->GetCurrentPlayWorld();
-#if WITH_EDITOR
-	if (!World && GIsEditor && GEditor)
-	{
-		World = GEditor->IsPlaySessionInProgress()
-		            ? (GEditor->GetCurrentPlayWorld() ? GEditor->GetCurrentPlayWorld() : (GEditor->GetPIEWorldContext() ? GEditor->GetPIEWorldContext()->World() : nullptr))
-		            : GEditor->GetEditorWorldContext().World();
-		World = World ? World : GWorld;
-	}
-#endif
-
+	const UWorld* World = UPoolManagerUtils::GetPlayWorld(OptionalWorldContext);
 	UPoolManagerSubsystem* FoundPoolManager = World ? Cast<UPoolManagerSubsystem>(World->GetSubsystemBase(OptionalClass)) : nullptr;
 	if (!ensureMsgf(FoundPoolManager, TEXT("%hs: 'Can not find Pool Manager for %s class in %s world"), __FUNCTION__, *OptionalClass->GetName(), *World->GetName()))
 	{

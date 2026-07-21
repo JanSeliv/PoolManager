@@ -1,4 +1,4 @@
-﻿// Copyright (c) Yevhenii Selivanov
+// Copyright (c) Yevhenii Selivanov
 
 #pragma once
 
@@ -32,4 +32,14 @@ public:
 	 * Compares the class module name against the plugin content root */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "[Pool Manager]")
 	static bool IsPoolInGameFeaturePlugin(const UClass* ObjectClass, const class UGameFeatureData* GameFeatureData);
+
+	/*********************************************************************************************
+	 * Internal Helpers
+	 ********************************************************************************************* */
+public:
+	/** Returns the current play world as UObject for weak pointer storage */
+	static class UWorld* GetPlayWorld(const UObject* WorldContextObject);
+
+	/** Returns world currently making a level visible. */
+	static class UWorld* GetWorldMakingVisible();
 };
